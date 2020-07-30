@@ -95,10 +95,12 @@ def addWithNumba(a, b):
 
 @numba.vectorize
 def divideWithNumba(a, b):
+    ''' Divide one column by an other column of a dataframe with increased performance thanks to vectorization '''
     return a / b
 
-def getBpSavedRatio(a, b):
-    return 1 if b == 0 else (a/b)
+def getBpSavedRatio(bp_saved, bp_faced):
+    ''' Divide break point saved by break point faced, if no break point faced consider as 1: max ratio'''
+    return 1 if bp_faced == 0 else (bp_saved/bp_faced)
 
 def getPreviousResults(player_results, index, p1_id, p2_id):
     results_p1 = player_results[p1_id]

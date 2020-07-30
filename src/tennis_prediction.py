@@ -32,7 +32,7 @@ dataset["p1_games_won"] = [game[0] for game in games]
 dataset["p2_games_won"] = [game[1] for game in games]
 # TODO CALCULATE GAME WON RATIO
 
-dataset.drop(dataset[(dataset["p1_svpt"] == 0) | (dataset["p2_svpt"] == 0)].index, inplace=True) 
+dataset.drop(dataset[(dataset["p1_SvGms"] == 0) | (dataset["p2_SvGms"] == 0)].index, inplace=True) 
 
 dataset["p1_ace_ratio"] = divideWithNumba(dataset["p1_ace"].to_numpy(), dataset["p1_svpt"].to_numpy())
 dataset["p2_ace_ratio"] = divideWithNumba(dataset["p2_ace"].to_numpy(), dataset["p2_svpt"].to_numpy())
@@ -44,9 +44,8 @@ dataset["p1_1stWon_ratio"] = divideWithNumba(dataset["p1_1stWon"].to_numpy(), da
 dataset["p2_1stWon_ratio"] = divideWithNumba(dataset["p2_1stWon"].to_numpy(), dataset["p2_svpt"].to_numpy())
 dataset["p1_2ndWon_ratio"] = divideWithNumba(dataset["p1_2ndWon"].to_numpy(), dataset["p1_svpt"].to_numpy())
 dataset["p2_2ndWon_ratio"] = divideWithNumba(dataset["p2_2ndWon"].to_numpy(), dataset["p2_svpt"].to_numpy())
-
-dataset["p1_bpFaced_ratio"] = divideWithNumba(dataset["p1_bpFaced"].to_numpy(), dataset["p1_svpt"].to_numpy()) # Break points Faced per return-game
-dataset["p2_bpFaced_ratio"] = divideWithNumba(dataset["p2_bpFaced"].to_numpy(), dataset["p2_svpt"].to_numpy()) # Break points Faced per return-game
+dataset["p1_bpFaced_ratio"] = divideWithNumba(dataset["p1_bpFaced"].to_numpy(), dataset["p1_SvGms"].to_numpy()) # Break points Faced per return-game
+dataset["p2_bpFaced_ratio"] = divideWithNumba(dataset["p2_bpFaced"].to_numpy(), dataset["p2_SvGms"].to_numpy()) # Break points Faced per return-game
 dataset["p1_bpSaved_ratio"] = [getBpSavedRatio(row[0], row[1]) for row in dataset[["p1_bpSaved", "p1_bpFaced"]].to_numpy()]       
 dataset["p2_bpSaved_ratio"] = [getBpSavedRatio(row[0], row[1]) for row in dataset[["p2_bpSaved", "p2_bpFaced"]].to_numpy()]       
 dataset['tourney_date'] = pd.to_datetime(dataset['tourney_date'], format="%Y%m%d")    
@@ -76,6 +75,7 @@ start_time = time.time()
 results = [getPreviousResults(player_results, index, ids[0], ids[1]) for index, ids in dataset[["p1_id", "p2_id"]].iterrows()]
 print("--- %s seconds ---" % (time.time() - start_time))
 
+
 dataset["p1_ace_ratio_last3"] = [result[0] for result in results]
 dataset["p2_ace_ratio_last3"] = [result[1] for result in results]
 dataset["p1_df_ratio_last3"] = [result[2] for result in results]
@@ -90,7 +90,6 @@ dataset["p1_bpSaved_ratio_last3"] = [result[10] for result in results]
 dataset["p2_bpSaved_ratio_last3"] = [result[11] for result in results]
 dataset["p1_bpFaced_ratio_last3"] = [result[12] for result in results]
 dataset["p2_bpFaced_ratio_last3"] = [result[13] for result in results]
-
 
 removed_cols = ["tourney_id", "score", "minutes", "p1_ace", "p1_df", "p1_svpt", "p1_1stIn", "p1_1stWon", "p1_2ndWon", "p1_SvGms",
                 "p1_SvGms", "p1_bpSaved", "p1_bpFaced", "p2_ace", "p2_df", "p2_svpt", "p2_1stIn", "p2_1stWon", "p2_2ndWon", 
@@ -151,7 +150,6 @@ my_model = LogisticRegression()
 my_pipeline = Pipeline(steps=[('preprocessor', preprocessor),
                       ('model', my_model)
                      ])
-
 
 # Preprocessing of training data, fit model 
 my_pipeline.fit(X_train, y_train)
