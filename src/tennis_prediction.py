@@ -8,12 +8,9 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 
-long_col = ["id", "name", "hand", "ht", "ioc", "age", "rank", "rank_points"]
-short_col = ["ace", "df", "svpt", "1stIn", "1stWon", "2ndWon", "SvGms", "bpSaved", "bpFaced"]
-
 # Read the data
 list_datasets = []
-for year in range(2016, 2021):
+for year in range(2018, 2021):
     dataset = pd.read_csv("https://raw.githubusercontent.com/davy-datascience/tennis-prediction/master/datasets/atp_matches_{}.csv".format(year))
     list_datasets.append(dataset)
 
@@ -26,7 +23,7 @@ dataset.drop(columns=["winner_seed", "winner_entry", "loser_seed", "loser_entry"
 dataset.dropna(inplace=True)
 
 
-dataset = renameColumnNames(dataset, long_col, short_col)
+dataset = renameColumnNames(dataset)
 
 dataset["p1_wins"] = True
 
@@ -70,13 +67,15 @@ for pid in player_ids:
     all_wins = all_matchs[all_matchs["p1_id"] == pid]
     all_lost = all_matchs[all_matchs["p2_id"] == pid]
     
-    player_results[pid]= pd.concat([all_wins, inverseDataset(all_lost, long_col + short_col)]).sort_index()
+    player_results[pid]= pd.concat([all_wins, inverseDataset(all_lost)]).sort_index()
 
 print("--- %s seconds ---" % (time.time() - start_time))
 
 
 start_time = time.time()
 results = [getPreviousResults(player_results, index, ids[0], ids[1]) for index, ids in dataset[["p1_id", "p2_id"]].iterrows()]
+print("--- %s seconds ---" % (time.time() - start_time))
+
 dataset["p1_ace_ratio_last3"] = [result[0] for result in results]
 dataset["p2_ace_ratio_last3"] = [result[1] for result in results]
 dataset["p1_df_ratio_last3"] = [result[2] for result in results]
@@ -91,9 +90,6 @@ dataset["p1_bpSaved_ratio_last3"] = [result[10] for result in results]
 dataset["p2_bpSaved_ratio_last3"] = [result[11] for result in results]
 dataset["p1_bpFaced_ratio_last3"] = [result[12] for result in results]
 dataset["p2_bpFaced_ratio_last3"] = [result[13] for result in results]
-
-
-print("--- %s seconds ---" % (time.time() - start_time))
 
 
 removed_cols = ["tourney_id", "score", "minutes", "p1_ace", "p1_df", "p1_svpt", "p1_1stIn", "p1_1stWon", "p1_2ndWon", "p1_SvGms",

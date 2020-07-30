@@ -5,12 +5,14 @@ from sklearn.feature_extraction.text import _VectorizerMixin
 from sklearn.feature_selection import SelectorMixin
 import re
 import numba
-from numba import njit
+
+# column names from the dataset
+long_col = ["id", "name", "hand", "ht", "ioc", "age", "rank", "rank_points"]
+short_col = ["ace", "df", "svpt", "1stIn", "1stWon", "2ndWon", "SvGms", "bpSaved", "bpFaced"]
 
 def inverseHalfDataset(dataset):
     '''inverse 50% of the dataset - for option 2'''
     inv = dataset.copy()
-    print(dataset.columns)
     for col in dataset.columns:
         if col.startswith("p1") and col != "p1_wins":
             inv[col] = np.where(dataset.index % 2 == 0, dataset[col] , dataset["p2" + col[2:]])
@@ -20,17 +22,17 @@ def inverseHalfDataset(dataset):
     inv["p1_wins"] = np.where(dataset.index % 2 == 0, 1, 0)
     return inv 
 
-def inverseDataset(dataset, cols):
+def inverseDataset(dataset):
     '''inverse 50% of the dataset - for option 2'''
     inv = dataset.copy()
-    for col in cols:
+    for col in long_col + short_col:
         inv["p1_" + col] = dataset["p2_" + col]
         inv["p2_" + col] = dataset["p1_" + col]
    
     inv["p1_wins"] = ~dataset["p1_wins"]
     return inv       
 
-def renameColumnNames(dataset, long_col, short_col):
+def renameColumnNames(dataset):
     columns = {}
     for col in long_col:
         columns["winner_" + col] = "p1_" + col
