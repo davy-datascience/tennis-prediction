@@ -1,33 +1,119 @@
 import pandas as pd
 import numpy as np
-from data_preparation import inverseHalfDataset, inverseDataset, renameColumnNames, extractGames, divideWithNumba, getBpSavedRatio, getPreviousResults
+from data_preparation import inverseHalfDataset, inverseDataset, renameColumnNames, extractGames, extractScores, divideWithNumba, getBpSavedRatio, getPreviousResults
+from match_player_ids import getPlayerIds, retrieveMissingIds, scrapPlayers, recordPlayers
+from scrap_atptour_tournaments import getTournamentsIds, retrieveMissingTournamentIds, scrapTournaments, recordTournaments
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import train_test_split
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
+import json
+import pymongo
+import configparser
+
+config = configparser.ConfigParser()
+config.read("config.ini")
+MONGO_CLIENT = config['mongo']['client']
+
 
 # Read the data
 list_datasets = []
-for year in range(2018, 2021):
+for year in range(1990, 2021):
     dataset = pd.read_csv("https://raw.githubusercontent.com/davy-datascience/tennis-prediction/master/datasets/atp_matches_{}.csv".format(year))
     list_datasets.append(dataset)
 
 dataset = pd.concat(list_datasets)
 dataset.reset_index(drop=True, inplace=True)
 
-dataset.drop(columns=["winner_seed", "winner_entry", "loser_seed", "loser_entry"], inplace=True)
+dataset.drop(columns=["tourney_id", "surface", "draw_size", "tourney_level", "match_num", 
+                      "winner_seed", "winner_entry", "winner_hand", "winner_ht", 
+                      "winner_ioc", "winner_age", "winner_rank", "winner_rank_points", 
+                      "loser_seed", "loser_entry", "loser_hand", "loser_ht", "loser_ioc", 
+                      "loser_age", "loser_rank", "loser_rank_points"], inplace=True)
 
 #drop rows with null value
 dataset.dropna(inplace=True)
 
+extracted_scores = extractScores(dataset['score'])
+dataset["p1_s1_gms"] = extracted_scores["p1_s1_gms"]
+dataset["p2_s1_gms"] = extracted_scores["p2_s1_gms"]
+dataset["p1_tb1_score"] = extracted_scores["p1_tb1_score"]
+dataset["p2_tb1_score"] = extracted_scores["p2_tb1_score"]
+
+dataset["p1_s2_gms"] = extracted_scores["p1_s2_gms"]
+dataset["p2_s2_gms"] = extracted_scores["p2_s2_gms"]
+dataset["p1_tb2_score"] = extracted_scores["p1_tb2_score"]
+dataset["p2_tb2_score"] = extracted_scores["p2_tb2_score"]
+
+dataset["p1_s3_gms"] = extracted_scores["p1_s3_gms"]
+dataset["p2_s3_gms"] = extracted_scores["p2_s3_gms"]
+dataset["p1_tb3_score"] = extracted_scores["p1_tb3_score"]
+dataset["p2_tb3_score"] = extracted_scores["p2_tb3_score"]
+
+dataset["p1_s4_gms"] = extracted_scores["p1_s4_gms"]
+dataset["p2_s4_gms"] = extracted_scores["p2_s4_gms"]
+dataset["p1_tb4_score"] = extracted_scores["p1_tb4_score"]
+dataset["p2_tb4_score"] = extracted_scores["p2_tb4_score"]
+
+dataset["p1_s5_gms"] = extracted_scores["p1_s5_gms"]
+dataset["p2_s5_gms"] = extracted_scores["p2_s5_gms"]
+dataset["p1_tb5_score"] = extracted_scores["p1_tb5_score"]
+dataset["p2_tb5_score"] = extracted_scores["p2_tb5_score"]
+
+dataset["ret"] = extracted_scores["ret"]
+
+# Find players corresponding ids (csv file + scrapping)
+dataset["p1_id"], dataset["p2_id"], new_players_to_scrap_ids = getPlayerIds(dataset[["winner_id", "winner_name", "loser_id", "loser_name"]])
+
+# Retrieve ids of players that couldn't be found
+p1_ids_notFound = dataset[(dataset["p1_id"].str.startswith('NO MATCH')) | (dataset["p1_id"].str.startswith('MULTIPLE MATCH'))]
+p2_ids_notFound = dataset[(dataset["p2_id"].str.startswith('NO MATCH')) | (dataset["p2_id"].str.startswith('MULTIPLE MATCH'))]
+
+p_ids_notFound = pd.Series([*p1_ids_notFound["winner_id"],*p2_ids_notFound["loser_id"]]).unique()
+
+dataset["p1_id"], dataset["p2_id"], manual_collect_player_ids = retrieveMissingIds(dataset)
+
+new_players_to_scrap_ids += manual_collect_player_ids.T.iloc[0].to_list()
+
+players = scrapPlayers(new_players_to_scrap_ids)
+if not (recordPlayers(players)):
+    print("Error while saving scrapped players in database")
+
+#
+
+# Find tournaments corresponding ids (csv file + scrapping)
+dataset["year"] = [str(row)[:4] for row in dataset["tourney_date"].to_numpy()]
+dataset["tournament_id"], new_tournaments_to_scrap = getTournamentsIds(dataset[["tourney_name", "tourney_date"]])
+tournament_names_notFound = pd.Series(dataset[dataset["tournament_id"] == -1]["tourney_name"]).unique()
+
+dataset["tournament_idddddd"], manual_collect_tournament_ids = retrieveMissingTournamentIds(dataset)
+
+new_tournaments_to_scrap += manual_collect_tournament_ids
+
+#
+
+tournaments = scrapTournaments(new_tournaments_to_scrap)
+if not (recordTournaments(tournaments)):
+    print("Error while saving scrapped tournaments in database")
+
+# Remove columns useless
+dataset.drop(columns=["tourney_name", "winner_id", "winner_name", "loser_id", "loser_name", "score"], inplace=True)
 
 dataset = renameColumnNames(dataset)
 
 dataset["p1_wins"] = True
 
-games = extractGames(dataset['score'])
+records = json.loads(dataset.T.to_json()).values()
+myclient = pymongo.MongoClient(MONGO_CLIENT)
+mydb = myclient["tennis"]
+mycol = mydb["matches"]           
+mycol.insert_many(records)
+
+
+games = extractGames(dataset["score"])
+
 dataset["p1_games_won"] = [game[0] for game in games]
 dataset["p2_games_won"] = [game[1] for game in games]
 # TODO CALCULATE GAME WON RATIO
@@ -160,6 +246,17 @@ y_pred = my_pipeline.predict(X_test)
 accuracy = sum(y_pred == y_test.to_numpy()) / len(y_pred)
 
 print(accuracy)
+
+
+# import joblib
+from joblib import dump
+
+# dump the pipeline model
+dump(my_pipeline, filename="tennis_prediction.joblib")
+
+
+
+
 
 # Ideas : Nationality
 #  matchups, "winner_id", "loser_id", 

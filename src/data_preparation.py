@@ -88,6 +88,63 @@ def extractGames(scores):
         gamesWon.append((sum([game[0] for game in games5]), sum([game[1] for game in games5])))
     return gamesWon
 
+def extractScores(scores):
+    p1_s1_gms = p1_s2_gms = p1_s3_gms = p1_s4_gms = p1_s5_gms = []
+    p1_tb1_score = p1_tb2_score = p1_tb3_score = p1_tb4_score = p1_tb5_score = []
+    p2_s1_gms = p2_s2_gms = p2_s3_gms = p2_s4_gms = p2_s5_gms = []
+    p2_tb1_score = p2_tb2_score = p2_tb3_score = p2_tb4_score = p2_tb5_score = []
+    
+    import collections
+    scores_dict = collections.defaultdict(list)
+
+    score_detailsss = []
+    for score in scores:
+        sets = score.split()
+        score_details = [extractGame(s) for s in sets]
+        
+        ret = False
+        for set_number in range(1,6):
+            if len(score_details) >= set_number:
+                info = score_details[set_number-1]
+                if info != None:
+                    scores_dict["p1_s{0}_gms".format(set_number)].append(info[0])
+                    scores_dict["p1_tb{0}_score".format(set_number)].append(info[2])
+                    scores_dict["p2_s{0}_gms".format(set_number)].append(info[1])
+                    scores_dict["p2_tb{0}_score".format(set_number)].append(info[3])
+                else:
+                    scores_dict["p1_s{0}_gms".format(set_number)].append(None)
+                    scores_dict["p1_tb{0}_score".format(set_number)].append(None)
+                    scores_dict["p2_s{0}_gms".format(set_number)].append(None)
+                    scores_dict["p2_tb{0}_score".format(set_number)].append(None)
+                    ret = True
+            else:
+                scores_dict["p1_s{0}_gms".format(set_number)].append(None)
+                scores_dict["p1_tb{0}_score".format(set_number)].append(None)
+                scores_dict["p2_s{0}_gms".format(set_number)].append(None)
+                scores_dict["p2_tb{0}_score".format(set_number)].append(None)
+        
+        scores_dict["ret"].append(ret)
+        
+    return(scores_dict)
+        
+def extractGame(s):
+    set_regex = re.search("^([0-7])-([0-7])\(*(\d*)\)*$", s)
+    if set_regex:
+        p1_games = int(set_regex.group(1))
+        p2_games = int(set_regex.group(2))
+        p1_tb_score = None
+        p2_tb_score = None
+        if set_regex.group(3) != "":
+            if p1_games == 7:
+                p2_tb_score = int(set_regex.group(3))
+                p1_tb_score = p2_tb_score + 2 if p2_tb_score + 2 >= 7 else 7
+            else:
+                p1_tb_score = int(set_regex.group(3))
+                p2_tb_score = p1_tb_score + 2 if p1_tb_score + 2 >= 7 else 7
+        return (int(p1_games), int(p2_games), int(p1_tb_score) if p1_tb_score != None else None, 
+                int(p2_tb_score) if p2_tb_score != None else None)
+    else:
+        return None
 
 @numba.vectorize
 def addWithNumba(a, b):
