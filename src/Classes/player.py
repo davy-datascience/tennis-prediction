@@ -1,6 +1,7 @@
 import json
 from json import JSONEncoder
 
+
 class Player:
     def __init__(self, id, name, formatted_name, city, country, surface, number_of_competitors, level):
         self.id = id
@@ -11,10 +12,12 @@ class Player:
         self.surface = surface
         self.number_of_competitors = number_of_competitors
         self.level = level
-        
+
+
 class PlayerEncoder(JSONEncoder):
-        def default(self, o):
-            return o.__dict__
-        
-def getPlayersJSON(players):
+    def default(self, o):
+        return o.__dict__
+
+
+def get_players_json(players):
     return json.loads(PlayerEncoder().encode(players))

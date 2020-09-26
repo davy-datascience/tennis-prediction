@@ -4,15 +4,15 @@ import re
 import configparser
 import pymongo
 
-
 config = configparser.ConfigParser()
-config.read("config.ini")
+config.read("src/config.ini")
 MONGO_CLIENT = config['mongo']['client']
 
-def scrapFlashScoreTournaments():
+
+def scrap_flash_score_tournaments():
     driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
-    match_url  = 'https://www.flashscore.com/tennis/'
-    driver.get(match_url);
+    match_url = 'https://www.flashscore.com/tennis/'
+    driver.get(match_url)
     time.sleep(0.5)
     
     # ATP
@@ -20,7 +20,7 @@ def scrapFlashScoreTournaments():
     formatted_names = []
     
     el = driver.find_element_by_xpath("//li[@id='lmenu_5724']/a")
-    driver.execute_script("arguments[0].click();", el);
+    driver.execute_script("arguments[0].click();", el)
     time.sleep(1)
     
     elements = driver.find_elements_by_xpath("//li[@id='lmenu_5724']/ul/li/a")
@@ -47,14 +47,12 @@ def scrapFlashScoreTournaments():
         formatted_names.append(formatted_name)
         
     driver.quit()
-    
-    
 
     myclient = pymongo.MongoClient(MONGO_CLIENT)
     mydb = myclient["tennis"]
     mycol = mydb["tournaments"]
     tournaments = mycol.find({})
-    notFound = []
+    not_found = []
     for tour in tournaments:
-        if tour["formatted_name"] not in formatted_names and str.lower(tour["name"]) not in names : 
-            notFound.append(tour["formatted_name"])
+        if tour["formatted_name"] not in formatted_names and str.lower(tour["name"]) not in names:
+            not_found.append(tour["formatted_name"])
