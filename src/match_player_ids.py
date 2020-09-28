@@ -290,7 +290,8 @@ def record_players(players):
                                    "birth_day"],
                           inplace=True)
 
-    list_of_players = [(Player(row["player_id"], row["first_name"], row["last_name"], row["birth_date"],
+    list_of_players = [(Player(row["player_id"], row["first_name"], row["last_name"],
+                               row["birth_date"].to_pydatetime(),
                                row["turned_pro"], row["weight_lbs"], row["height_cm"], row["flag_code"],
                                row["birth_city"], row["birth_country"], row["residence_city"], row["residence_country"],
                                row["handedness"], row["backhand"])) for index, row in players_from_csv.iterrows()]

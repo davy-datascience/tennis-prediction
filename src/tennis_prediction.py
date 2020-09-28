@@ -31,6 +31,10 @@ dataset.drop(columns=["tourney_id", "surface", "draw_size", "tourney_level", "ma
 # drop rows with null value
 dataset.dropna(inplace=True)
 
+# drop Davis Cup
+indexes_davis_cup = dataset[dataset["tourney_name"].str.startswith("Davis Cup")].index
+dataset.drop(indexes_davis_cup, inplace=True)
+
 extracted_scores = extract_scores(dataset['score'])
 dataset["p1_s1_gms"] = extracted_scores["p1_s1_gms"]
 dataset["p2_s1_gms"] = extracted_scores["p2_s1_gms"]
@@ -83,8 +87,8 @@ if not (record_players(players)):
 #
 
 # Find tournaments corresponding ids (csv file + scrapping)
-dataset["year"] = [str(row)[:4] for row in dataset["tourney_date"].to_numpy()]
-dataset["tournament_id"], new_tournaments_to_scrap = get_tournaments_ids(dataset[["tourney_name", "tourney_date"]])
+dataset["year"] = [int(str(row)[:4]) for row in dataset["tourney_date"].to_numpy()]
+dataset["tournament_id"], new_tournaments_to_scrap = get_tournaments_ids(dataset[["tourney_name", "year"]])
 tournament_names_notFound = pd.Series(dataset[dataset["tournament_id"] == -1]["tourney_name"]).unique()
 
 dataset["tournament_id"], manual_collect_tournament_ids = retrieve_missing_tournament_ids(dataset)

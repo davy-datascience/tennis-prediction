@@ -86,7 +86,7 @@ def record_tournaments_by_year(year):
     mycol.insert_many(records)
 
 
-def scrap_tournament_id(name, year, tournaments, new_tournaments_to_scrap):
+def scrap_tournament_id(year, tournaments_by_year):
     driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
     url = 'https://www.atptour.com/-/ajax/Scores/GetTournamentArchiveForYear/{}'.format(year)
     driver.get(url)
@@ -98,59 +98,54 @@ def scrap_tournament_id(name, year, tournaments, new_tournaments_to_scrap):
     except NoSuchElementException:
         print("Couldn't scrap tournaments for year {}".format(year))
 
-    if tournaments_scrapped is None:
-        url = 'https://www.atptour.com/-/ajax/Scores/GetTournamentArchiveForYear/{}'.format(int(year) - 1)
-        driver.get(url)
-        time.sleep(1)
-        try:
-            content = driver.find_element_by_xpath("//pre").text
-            tournaments_scrapped = json.loads(content)
-        except NoSuchElementException:
-            print("Couldn't scrap tournaments for year {}".format(int(year) - 1))
-
     driver.quit()
 
-    tourn_id = None
     if tournaments_scrapped is not None:
-        for tournament in tournaments_scrapped:
-            if tournament["Key"] == name:
-                tourn_id = int(tournament["Value"])
-                tourn_formatted_name = tournament["DataAttributes"]["descriptor"]
-                new_tournaments_to_scrap.append([tourn_id, tourn_formatted_name, year])
-                break
-
-    if tourn_id is None:
-        tourn_id = -1
-
-    tournaments[name] = tourn_id
-
-    return tourn_id
+        tournaments_by_year[year] = {tournament["Key"]: {"id": int(tournament["Value"]),
+                                                         "formatted_name": tournament["DataAttributes"]["descriptor"]}
+                                     for tournament in tournaments_scrapped}
 
 
-def match_tournament(name, year, tournaments, new_tournaments_to_scrap):
-    if name.startswith("Davis Cup"):
-        name = "Davis Cup"
+def match_tournament(name, year, tournaments, tournaments_by_year, new_tournaments_to_scrap):
+    """if name.startswith("Davis Cup"):
+        name = "Davis Cup\""""
     if name not in tournaments:
-        tourn_id = scrap_tournament_id(name, year, tournaments, new_tournaments_to_scrap)
-        return tourn_id
-    else:
-        return tournaments[name]
+        if year not in tournaments_by_year:
+            scrap_tournament_id(year, tournaments_by_year)
+
+        if year not in tournaments_by_year and year - 1 not in tournaments_by_year:
+            scrap_tournament_id(year, tournaments_by_year)
+
+        if year in tournaments_by_year:
+            if name in tournaments_by_year.get(year):
+                tournaments[name] = tournaments_by_year.get(year).get(name)["id"]
+                new_tournaments_to_scrap.append([tournaments_by_year.get(year).get(name)["id"],
+                                                 tournaments_by_year.get(year).get(name)["formatted_name"], year])
+            else:
+                tournaments[name] = - 1
+        elif year - 1 in tournaments_by_year:
+            if name in tournaments_by_year.get(year - 1):
+                tournaments[name] = tournaments_by_year.get(year - 1).get(name)["id"]
+                new_tournaments_to_scrap.append([tournaments_by_year.get(year - 1).get(name)["id"],
+                                                 tournaments_by_year.get(year - 1).get(name)["formatted_name"], year - 1])
+            else:
+                tournaments[name] = - 1
+        else:
+            tournaments[name] = - 1
+
+    return tournaments[name]
 
 
 def get_tournaments_ids(dataset):
     start_time = time.time()
-    
+
     tournaments = {}
     new_tournaments_to_scrap = []
 
-    '''myclient = pymongo.MongoClient(MONGO_CLIENT)
-    mydb = myclient["tennis"]
-    mycol = mydb["tournaments"]
-    tours = mycol.find({})
-    for tour in tours:
-        tournaments[tour["name"]] = [tour["id"], tour["formatted_name"]]'''
+    tournaments_by_year = {}
 
-    tournaments_ids = [match_tournament(row[0], str(row[1])[:4], tournaments, new_tournaments_to_scrap) for row in
+    tournaments_ids = [match_tournament(row[0], row[1], tournaments, tournaments_by_year,
+                                        new_tournaments_to_scrap) for row in
                        dataset.reindex(index=dataset.index[::-1]).to_numpy()]
 
     print("---getTournamentsIds  %s seconds ---" % (time.time() - start_time))
@@ -159,8 +154,8 @@ def get_tournaments_ids(dataset):
 
 def retrieve_missing_tournament_id(tournament_name, atptour_id, tournament_ids):
     if atptour_id == -1:
-        if tournament_name.startswith("Davis Cup"):
-            tournament_name = "Davis Cup"
+        '''if tournament_name.startswith("Davis Cup"):
+            tournament_name = "Davis Cup"'''
         new_id = None
         try:
             new_id = tournament_ids.loc[tournament_name][0]

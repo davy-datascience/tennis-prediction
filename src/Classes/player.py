@@ -3,6 +3,7 @@ from json import JSONEncoder
 from bson.json_util import loads
 from datetime import datetime, date
 from dateutil.tz import UTC
+import pandas as pd
 
 
 class Player:
@@ -27,6 +28,8 @@ class Player:
 class PlayerEncoder(JSONEncoder):
     def default(self, obj):
         if isinstance(obj, date):
+            if pd.isna(obj):
+                return None
             return {"$date": datetime(int(obj.year), int(obj.month), int(obj.day), tzinfo=UTC).timestamp() * 1000}
         elif isinstance(obj, datetime):
             return {"$date": obj.timestamp() * 1000}
