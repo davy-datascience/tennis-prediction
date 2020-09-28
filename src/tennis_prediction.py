@@ -58,7 +58,7 @@ dataset["p1_tb5_score"] = extracted_scores["p1_tb5_score"]
 dataset["p2_tb5_score"] = extracted_scores["p2_tb5_score"]
 
 dataset["ret"] = extracted_scores["ret"]
-'''
+
 # Find players corresponding ids (csv file + scrapping)
 dataset["p1_id"], dataset["p2_id"], new_players_to_scrap_ids = \
     get_player_ids(dataset[["winner_id", "winner_name", "loser_id", "loser_name"]])
@@ -69,15 +69,16 @@ p1_ids_notFound = dataset[(dataset["p1_id"].str.startswith('NO MATCH'))
 p2_ids_notFound = dataset[(dataset["p2_id"].str.startswith('NO MATCH'))
                           | (dataset["p2_id"].str.startswith('MULTIPLE MATCH'))]
 
-p_ids_notFound = pd.Series([*p1_ids_notFound["winner_id"],*p2_ids_notFound["loser_id"]]).unique()
+p_ids_notFound = pd.Series([*p1_ids_notFound["winner_id"], *p2_ids_notFound["loser_id"]]).unique()
 
 dataset["p1_id"], dataset["p2_id"], manual_collect_player_ids = retrieve_missing_ids(dataset)
 
 new_players_to_scrap_ids += manual_collect_player_ids.T.iloc[0].to_list()
-'''
-'''players = scrap_players(new_players_to_scrap_ids)
-if not (recordPlayers(players)):
-    print("Error while saving scrapped players in database")'''
+
+players = scrap_players(new_players_to_scrap_ids)
+
+if not (record_players(players)):
+    print("Error while saving scrapped players in database")
 
 #
 
@@ -86,7 +87,7 @@ dataset["year"] = [str(row)[:4] for row in dataset["tourney_date"].to_numpy()]
 dataset["tournament_id"], new_tournaments_to_scrap = get_tournaments_ids(dataset[["tourney_name", "tourney_date"]])
 tournament_names_notFound = pd.Series(dataset[dataset["tournament_id"] == -1]["tourney_name"]).unique()
 
-dataset["tournament_idddddd"], manual_collect_tournament_ids = retrieve_missing_tournament_ids(dataset)
+dataset["tournament_id"], manual_collect_tournament_ids = retrieve_missing_tournament_ids(dataset)
 
 new_tournaments_to_scrap += manual_collect_tournament_ids
 

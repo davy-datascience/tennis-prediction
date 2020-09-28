@@ -6,7 +6,6 @@ import pymongo
 import configparser
 from selenium.common.exceptions import NoSuchElementException
 from src.Classes.tournament import *
-# from Classes.tournament import Tournament, getTournamentsJSON
 
 config = configparser.ConfigParser()
 config.read("src/config.ini")
@@ -144,12 +143,12 @@ def get_tournaments_ids(dataset):
     tournaments = {}
     new_tournaments_to_scrap = []
 
-    myclient = pymongo.MongoClient(MONGO_CLIENT)
+    '''myclient = pymongo.MongoClient(MONGO_CLIENT)
     mydb = myclient["tennis"]
     mycol = mydb["tournaments"]
     tours = mycol.find({})
     for tour in tours:
-        tournaments[tour["name"]] = [tour["id"], tour["formatted_name"]]
+        tournaments[tour["name"]] = [tour["id"], tour["formatted_name"]]'''
 
     tournaments_ids = [match_tournament(row[0], str(row[1])[:4], tournaments, new_tournaments_to_scrap) for row in
                        dataset.reindex(index=dataset.index[::-1]).to_numpy()]
@@ -194,6 +193,8 @@ def scrap_tournament(tournament_id, tournament_formatted_name, year):
     tournament = None
     try:
         name = driver.find_element_by_xpath("//div[@class='player-profile-hero-name']/div[1]").text
+        if name == "":
+            name = tournament_formatted_name
 
         location = driver.find_element_by_xpath("//div[@class='player-profile-hero-dash']/div/div[2]").text
         matched_location = location.split(", ")
@@ -205,7 +206,11 @@ def scrap_tournament(tournament_id, tournament_formatted_name, year):
         level_matched = re.search("categorystamps_(.+)_", img_src)
         level = level_matched.group(1) if level_matched else None
 
-        number_of_competitors = int(driver.find_element_by_xpath("//div[@class='bracket-sgl']/div[2]").text)
+        number_of_competitors = None
+        try:
+            number_of_competitors = int(driver.find_element_by_xpath("//div[@class='bracket-sgl']/div[2]").text)
+        except ValueError:
+            pass
 
         surface = driver.find_element_by_xpath("//div[@class='surface-bottom']/div[2]").text
 
