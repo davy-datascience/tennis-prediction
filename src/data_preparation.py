@@ -160,6 +160,11 @@ def add_with_numba(a, b):
 
 
 @numba.vectorize
+def substract_with_numba(a, b):
+    return a - b
+
+
+@numba.vectorize
 def divide_with_numba(a, b):
     """ Divide one column by an other column of a dataframe with increased performance thanks to vectorization """
     return a / b

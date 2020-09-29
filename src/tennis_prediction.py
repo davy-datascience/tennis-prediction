@@ -101,13 +101,17 @@ tournaments = scrap_tournaments(new_tournaments_to_scrap)
 if not (record_tournaments(tournaments)):
     print("Error while saving scrapped tournaments in database")
 
-# Remove columns useless
-dataset.drop(columns=["tourney_name", "winner_id", "winner_name", "loser_id", "loser_name", "score"], inplace=True)
 
 dataset = rename_column_names(dataset)
 
+dataset["p1_2nd_pts"] = substract_with_numba(dataset["p1_svpt"].to_numpy(), dataset["p1_1stIn"].to_numpy())
+dataset["p2_2nd_pts"] = substract_with_numba(dataset["p2_svpt"].to_numpy(), dataset["p2_1stIn"].to_numpy())
 dataset["p1_wins"] = True
 
+# Remove columns useless
+dataset.drop(columns=["tourney_name", "winner_id", "winner_name", "loser_id", "loser_name", "score"], inplace=True)
+
+# Record Matches
 records = json.loads(dataset.T.to_json()).values()
 myclient = pymongo.MongoClient(MONGO_CLIENT)
 mydb = myclient["tennis"]
@@ -129,10 +133,10 @@ dataset["p1_df_ratio"] = divide_with_numba(dataset["p1_df"].to_numpy(), dataset[
 dataset["p2_df_ratio"] = divide_with_numba(dataset["p2_df"].to_numpy(), dataset["p2_svpt"].to_numpy())
 dataset["p1_1stIn_ratio"] = divide_with_numba(dataset["p1_1stIn"].to_numpy(), dataset["p1_svpt"].to_numpy())
 dataset["p2_1stIn_ratio"] = divide_with_numba(dataset["p2_1stIn"].to_numpy(), dataset["p2_svpt"].to_numpy())
-dataset["p1_1stWon_ratio"] = divide_with_numba(dataset["p1_1stWon"].to_numpy(), dataset["p1_svpt"].to_numpy())
-dataset["p2_1stWon_ratio"] = divide_with_numba(dataset["p2_1stWon"].to_numpy(), dataset["p2_svpt"].to_numpy())
-dataset["p1_2ndWon_ratio"] = divide_with_numba(dataset["p1_2ndWon"].to_numpy(), dataset["p1_svpt"].to_numpy())
-dataset["p2_2ndWon_ratio"] = divide_with_numba(dataset["p2_2ndWon"].to_numpy(), dataset["p2_svpt"].to_numpy())
+dataset["p1_1stWon_ratio"] = divide_with_numba(dataset["p1_1stWon"].to_numpy(), dataset["p1_1stIn"].to_numpy())
+dataset["p2_1stWon_ratio"] = divide_with_numba(dataset["p2_1stWon"].to_numpy(), dataset["p2_1stIn"].to_numpy())
+dataset["p1_2ndWon_ratio"] = divide_with_numba(dataset["p1_2ndWon"].to_numpy(), dataset["p1_2nd_pts"].to_numpy())
+dataset["p2_2ndWon_ratio"] = divide_with_numba(dataset["p2_2ndWon"].to_numpy(), dataset["p2_2nd_pts"].to_numpy())
 # Break points Faced per return-game
 dataset["p1_bpFaced_ratio"] = divide_with_numba(dataset["p1_bpFaced"].to_numpy(), dataset["p1_SvGms"].to_numpy())
 dataset["p2_bpFaced_ratio"] = divide_with_numba(dataset["p2_bpFaced"].to_numpy(), dataset["p2_SvGms"].to_numpy())

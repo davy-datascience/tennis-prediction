@@ -53,6 +53,28 @@ def scrap_flash_score_tournaments():
     mycol = mydb["tournaments"]
     tournaments = mycol.find({})
     not_found = []
+    matched = []
     for tour in tournaments:
-        if tour["formatted_name"] not in formatted_names and str.lower(tour["name"]) not in names:
+        if tour["formatted_name"] in formatted_names:
+            matched.append([tour["id"], tour["formatted_name"]])
+        elif tour["name"] in names:
+            index = names.index(tour["name"])
+            matched.append([tour["id"], formatted_names[index]])
+        else:
             not_found.append(tour["formatted_name"])
+
+    matched.append([568, 'st-petersburg'])
+    matched.append([440, 'hertogenbosch'])
+    matched.append([520, 'french-open'])
+    matched.append([96, 'olympic-games'])
+    matched.append([6815, 'delray-beach'])
+    matched.append([479, 'geneva'])
+    matched.append([605, 'finals-londres'])
+    matched.append([65, 'poertschach'])
+    matched.append([7696, 'next-gen-finals-milan'])
+    matched.append([306, 'st-poelten'])
+
+    for matched_tour in matched:
+        myquery = {"id": matched_tour[0]}
+        newvalues = {"$set": {"flashscore_name": matched_tour[1]}}
+        x = mycol.update_many(myquery, newvalues)
