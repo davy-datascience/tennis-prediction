@@ -101,12 +101,8 @@ def get_player_ids(players_in_matches_dataset):
     loser_atp_ids = [match_player(row[2], row[3], players, player_ids, new_players_to_scrap_ids) for row in
                      players_in_matches_dataset.to_numpy()]
 
-    # player_atp_ids = [matchPlayer(row[0], row[1], players, player_ids, new_players_to_scrap_ids)
-    # for row in players_in_matches_dataset.to_numpy()]
-
     print("---getPlayerIds  %s seconds ---" % (time.time() - start_time))
     return winner_atp_ids, loser_atp_ids, new_players_to_scrap_ids
-    # return (player_atp_ids, new_players_to_scrap_ids)
 
 
 def retrieve_missing_id(player_id, atptour_id, player_ids_manual_collect):
@@ -128,6 +124,26 @@ def retrieve_missing_ids(dataset):
         lambda row: retrieve_missing_id(row["loser_id"], row["p2_id"], player_ids_manual_collect), axis=1)
 
     return p1_ids_dataframe, p2_ids_dataframe, player_ids_manual_collect
+
+
+def find_player_ids(dataset):
+    # Find players corresponding ids (csv file + scrapping)
+    dataset["p1_id"], dataset["p2_id"], new_players_to_scrap_ids = \
+        get_player_ids(dataset[["winner_id", "winner_name", "loser_id", "loser_name"]])
+
+    # Retrieve ids of players that couldn't be found
+    '''p1_ids_notFound = dataset[(dataset["p1_id"].str.startswith('NO MATCH'))
+                              | (dataset["p1_id"].str.startswith('MULTIPLE MATCH'))]
+    p2_ids_notFound = dataset[(dataset["p2_id"].str.startswith('NO MATCH'))
+                              | (dataset["p2_id"].str.startswith('MULTIPLE MATCH'))]
+
+     p_ids_notFound = pd.Series([*p1_ids_notFound["winner_id"], *p2_ids_notFound["loser_id"]]).unique()'''
+
+    dataset["p1_id"], dataset["p2_id"], manual_collect_player_ids = retrieve_missing_ids(dataset)
+
+    new_players_to_scrap_ids += manual_collect_player_ids.T.iloc[0].to_list()
+
+    return dataset, new_players_to_scrap_ids
 
 
 def scrap_player(player_id):

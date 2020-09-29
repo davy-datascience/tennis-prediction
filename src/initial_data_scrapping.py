@@ -5,7 +5,8 @@ from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from src.data_preparation import *
 from src.scrap_atptour_tournaments import *
-from src.match_player_ids import *
+from src.scrap_flashscore_tournaments import scrap_flash_score_tournaments
+from src.scrap_players import *
 
 config = configparser.ConfigParser()
 config.read("src/config.ini")
@@ -14,7 +15,7 @@ MONGO_CLIENT = config['mongo']['client']
 
 # Read the data
 list_datasets = []
-for year in range(1990, 2021):
+for year in range(2016, 2021):
     dataset = pd.read_csv("https://raw.githubusercontent.com/davy-datascience/tennis-prediction/master/datasets"
                           "/atp_matches/atp_matches_{}.csv".format(year))
     list_datasets.append(dataset)
@@ -35,77 +36,34 @@ dataset.dropna(inplace=True)
 indexes_davis_cup = dataset[dataset["tourney_name"].str.startswith("Davis Cup")].index
 dataset.drop(indexes_davis_cup, inplace=True)
 
-extracted_scores = extract_scores(dataset['score'])
-dataset["p1_s1_gms"] = extracted_scores["p1_s1_gms"]
-dataset["p2_s1_gms"] = extracted_scores["p2_s1_gms"]
-dataset["p1_tb1_score"] = extracted_scores["p1_tb1_score"]
-dataset["p2_tb1_score"] = extracted_scores["p2_tb1_score"]
+# Extract games per set from 'score' string
+dataset = extract_scores(dataset)
 
-dataset["p1_s2_gms"] = extracted_scores["p1_s2_gms"]
-dataset["p2_s2_gms"] = extracted_scores["p2_s2_gms"]
-dataset["p1_tb2_score"] = extracted_scores["p1_tb2_score"]
-dataset["p2_tb2_score"] = extracted_scores["p2_tb2_score"]
+# Find player ids in csv file and atptour, then affect to dataset : p1_id and p2_id
+dataset, new_players_to_scrap_ids = find_player_ids(dataset)
 
-dataset["p1_s3_gms"] = extracted_scores["p1_s3_gms"]
-dataset["p2_s3_gms"] = extracted_scores["p2_s3_gms"]
-dataset["p1_tb3_score"] = extracted_scores["p1_tb3_score"]
-dataset["p2_tb3_score"] = extracted_scores["p2_tb3_score"]
-
-dataset["p1_s4_gms"] = extracted_scores["p1_s4_gms"]
-dataset["p2_s4_gms"] = extracted_scores["p2_s4_gms"]
-dataset["p1_tb4_score"] = extracted_scores["p1_tb4_score"]
-dataset["p2_tb4_score"] = extracted_scores["p2_tb4_score"]
-
-dataset["p1_s5_gms"] = extracted_scores["p1_s5_gms"]
-dataset["p2_s5_gms"] = extracted_scores["p2_s5_gms"]
-dataset["p1_tb5_score"] = extracted_scores["p1_tb5_score"]
-dataset["p2_tb5_score"] = extracted_scores["p2_tb5_score"]
-
-dataset["ret"] = extracted_scores["ret"]
-
-# Find players corresponding ids (csv file + scrapping)
-dataset["p1_id"], dataset["p2_id"], new_players_to_scrap_ids = \
-    get_player_ids(dataset[["winner_id", "winner_name", "loser_id", "loser_name"]])
-
-# Retrieve ids of players that couldn't be found
-p1_ids_notFound = dataset[(dataset["p1_id"].str.startswith('NO MATCH'))
-                          | (dataset["p1_id"].str.startswith('MULTIPLE MATCH'))]
-p2_ids_notFound = dataset[(dataset["p2_id"].str.startswith('NO MATCH'))
-                          | (dataset["p2_id"].str.startswith('MULTIPLE MATCH'))]
-
-p_ids_notFound = pd.Series([*p1_ids_notFound["winner_id"], *p2_ids_notFound["loser_id"]]).unique()
-
-dataset["p1_id"], dataset["p2_id"], manual_collect_player_ids = retrieve_missing_ids(dataset)
-
-new_players_to_scrap_ids += manual_collect_player_ids.T.iloc[0].to_list()
-
+# scrap players
 players = scrap_players(new_players_to_scrap_ids)
 
+# record players in database
 if not (record_players(players)):
     print("Error while saving scrapped players in database")
 
-#
-
-# Find tournaments corresponding ids (csv file + scrapping)
-dataset["year"] = [int(str(row)[:4]) for row in dataset["tourney_date"].to_numpy()]
-dataset["tournament_id"], new_tournaments_to_scrap = get_tournaments_ids(dataset[["tourney_name", "year"]])
-tournament_names_notFound = pd.Series(dataset[dataset["tournament_id"] == -1]["tourney_name"]).unique()
-
-dataset["tournament_id"], manual_collect_tournament_ids = retrieve_missing_tournament_ids(dataset)
-
-new_tournaments_to_scrap += manual_collect_tournament_ids
-
-#
+# Find tournament ids in atptour, then affect to dataset : tournament_id
+dataset, new_tournaments_to_scrap = find_tournament_info(dataset)
 
 tournaments = scrap_tournaments(new_tournaments_to_scrap)
 if not (record_tournaments(tournaments)):
     print("Error while saving scrapped tournaments in database")
 
+# get tournaments ids from flashscore
+scrap_flash_score_tournaments()
 
 dataset = rename_column_names(dataset)
 
 dataset["p1_2nd_pts"] = substract_with_numba(dataset["p1_svpt"].to_numpy(), dataset["p1_1stIn"].to_numpy())
 dataset["p2_2nd_pts"] = substract_with_numba(dataset["p2_svpt"].to_numpy(), dataset["p2_1stIn"].to_numpy())
+
 dataset["p1_wins"] = True
 
 # Remove columns useless

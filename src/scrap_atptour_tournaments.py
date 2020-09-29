@@ -178,6 +178,18 @@ def retrieve_missing_tournament_ids(dataset):
     return tournament_ids_dataframe, tournament_ids_manual_collect.values.tolist()
 
 
+def find_tournament_info(dataset):
+    # Find tournaments corresponding ids (csv file + scrapping)
+    dataset["year"] = [int(str(row)[:4]) for row in dataset["tourney_date"].to_numpy()]
+    dataset["tournament_id"], new_tournaments_to_scrap = get_tournaments_ids(dataset[["tourney_name", "year"]])
+    # tournament_names_notFound = pd.Series(dataset[dataset["tournament_id"] == -1]["tourney_name"]).unique()
+    dataset["tournament_id"], manual_collect_tournament_ids = retrieve_missing_tournament_ids(dataset)
+
+    new_tournaments_to_scrap += manual_collect_tournament_ids
+
+    return dataset, new_tournaments_to_scrap
+
+
 def scrap_tournament(tournament_id, tournament_formatted_name, year):
     driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
     match_url = 'https://www.atptour.com/en/tournaments/{0}/{1}/overview'.format(tournament_formatted_name,

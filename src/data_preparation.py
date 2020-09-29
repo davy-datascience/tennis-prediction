@@ -5,6 +5,7 @@ from sklearn.feature_extraction.text import _VectorizerMixin
 from sklearn.feature_selection import SelectorMixin
 import re
 import numba
+import collections
 
 # column names from the dataset
 long_col = ["id", "name", "hand", "ht", "ioc", "age", "rank", "rank_points"]
@@ -94,13 +95,8 @@ def extract_games(scores):
     return games_won
 
 
-def extract_scores(scores):
-    p1_s1_gms = p1_s2_gms = p1_s3_gms = p1_s4_gms = p1_s5_gms = []
-    p1_tb1_score = p1_tb2_score = p1_tb3_score = p1_tb4_score = p1_tb5_score = []
-    p2_s1_gms = p2_s2_gms = p2_s3_gms = p2_s4_gms = p2_s5_gms = []
-    p2_tb1_score = p2_tb2_score = p2_tb3_score = p2_tb4_score = p2_tb5_score = []
-    
-    import collections
+def extract_scores(dataset):
+    scores = dataset["score"]
     scores_dict = collections.defaultdict(list)
 
     score_detailsss = []
@@ -130,8 +126,35 @@ def extract_scores(scores):
                 scores_dict["p2_tb{0}_score".format(set_number)].append(None)
         
         scores_dict["ret"].append(ret)
-        
-    return scores_dict
+
+    dataset["p1_s1_gms"] = scores_dict["p1_s1_gms"]
+    dataset["p2_s1_gms"] = scores_dict["p2_s1_gms"]
+    dataset["p1_tb1_score"] = scores_dict["p1_tb1_score"]
+    dataset["p2_tb1_score"] = scores_dict["p2_tb1_score"]
+
+    dataset["p1_s2_gms"] = scores_dict["p1_s2_gms"]
+    dataset["p2_s2_gms"] = scores_dict["p2_s2_gms"]
+    dataset["p1_tb2_score"] = scores_dict["p1_tb2_score"]
+    dataset["p2_tb2_score"] = scores_dict["p2_tb2_score"]
+
+    dataset["p1_s3_gms"] = scores_dict["p1_s3_gms"]
+    dataset["p2_s3_gms"] = scores_dict["p2_s3_gms"]
+    dataset["p1_tb3_score"] = scores_dict["p1_tb3_score"]
+    dataset["p2_tb3_score"] = scores_dict["p2_tb3_score"]
+
+    dataset["p1_s4_gms"] = scores_dict["p1_s4_gms"]
+    dataset["p2_s4_gms"] = scores_dict["p2_s4_gms"]
+    dataset["p1_tb4_score"] = scores_dict["p1_tb4_score"]
+    dataset["p2_tb4_score"] = scores_dict["p2_tb4_score"]
+
+    dataset["p1_s5_gms"] = scores_dict["p1_s5_gms"]
+    dataset["p2_s5_gms"] = scores_dict["p2_s5_gms"]
+    dataset["p1_tb5_score"] = scores_dict["p1_tb5_score"]
+    dataset["p2_tb5_score"] = scores_dict["p2_tb5_score"]
+
+    dataset["ret"] = scores_dict["ret"]
+
+    return dataset
 
 
 def extract_game(s):
