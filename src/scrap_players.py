@@ -43,7 +43,7 @@ def search_player(first_name, last_name, players):
                        (players["last_name"].str.contains(last_name.lower()))]
 
 
-def match_player(p_id, full_name, players, player_ids, new_players_to_scrap_ids):
+def match_player(p_id, full_name, players, player_ids, new_players_to_scrap_ids, player_ids_to_keep_csv):
     if p_id not in player_ids:
         my_man = None
         matched = re.search("(.*) (.+)$", full_name)
@@ -76,7 +76,9 @@ def match_player(p_id, full_name, players, player_ids, new_players_to_scrap_ids)
         elif len(my_man) > 1:
             atp_id = "MULTIPLE MATCH " + full_name
         else:
-            atp_id = my_man.iloc[0]["player_id"]
+            matched_player_id = my_man.iloc[0]["player_id"]
+            player_ids_to_keep_csv.append(matched_player_id)
+            atp_id = matched_player_id
 
         player_ids[p_id] = atp_id
 
@@ -95,14 +97,17 @@ def get_player_ids(players_in_matches_dataset):
 
     player_ids = {}
     new_players_to_scrap_ids = []
+    player_ids_to_keep_csv = []
 
-    winner_atp_ids = [match_player(row[0], row[1], players, player_ids, new_players_to_scrap_ids) for row in
-                      players_in_matches_dataset.to_numpy()]
-    loser_atp_ids = [match_player(row[2], row[3], players, player_ids, new_players_to_scrap_ids) for row in
+    winner_atp_ids = [
+        match_player(row[0], row[1], players, player_ids, new_players_to_scrap_ids, player_ids_to_keep_csv) for row in
+        players_in_matches_dataset.to_numpy()]
+    loser_atp_ids = [match_player(row[2], row[3], players, player_ids, new_players_to_scrap_ids, player_ids_to_keep_csv)
+                     for row in
                      players_in_matches_dataset.to_numpy()]
 
     print("---getPlayerIds  %s seconds ---" % (time.time() - start_time))
-    return winner_atp_ids, loser_atp_ids, new_players_to_scrap_ids
+    return winner_atp_ids, loser_atp_ids, new_players_to_scrap_ids, player_ids_to_keep_csv
 
 
 def retrieve_missing_id(player_id, atptour_id, player_ids_manual_collect):
@@ -128,7 +133,7 @@ def retrieve_missing_ids(dataset):
 
 def find_player_ids(dataset):
     # Find players corresponding ids (csv file + scrapping)
-    dataset["p1_id"], dataset["p2_id"], new_players_to_scrap_ids = \
+    dataset["p1_id"], dataset["p2_id"], new_players_to_scrap_ids, player_ids_to_keep_csv = \
         get_player_ids(dataset[["winner_id", "winner_name", "loser_id", "loser_name"]])
 
     # Retrieve ids of players that couldn't be found
@@ -143,7 +148,7 @@ def find_player_ids(dataset):
 
     new_players_to_scrap_ids += manual_collect_player_ids.T.iloc[0].to_list()
 
-    return dataset, new_players_to_scrap_ids
+    return dataset, new_players_to_scrap_ids, player_ids_to_keep_csv
 
 
 def scrap_player(player_id):
@@ -290,7 +295,7 @@ def format_player(player):
     return player
 
 
-def record_players(players):
+def record_players(players, player_ids_to_keep_csv):
     # Record scrapped players
     players_json = get_players_json(players)
     myclient = pymongo.MongoClient(MONGO_CLIENT)
@@ -300,22 +305,72 @@ def record_players(players):
 
     # Record players from csv file
     players_from_csv = pd.read_csv("datasets/atp_players.csv")
+    indexes_to_keep = players_from_csv[players_from_csv["player_id"].isin(player_ids_to_keep_csv)].index
+    players_from_csv = players_from_csv[players_from_csv.index.isin(indexes_to_keep)]
     players_from_csv = players_from_csv.apply(lambda row: format_player(row), axis=1)
     players_from_csv.drop(columns=["first_initial", "full_name", "player_url", "birthdate", "weight_kg", "height_ft",
                                    "height_inches", "residence", "birthplace", "birth_year", "birth_month",
                                    "birth_day"],
                           inplace=True)
 
-    list_of_players = [(Player(row["player_id"], row["first_name"], row["last_name"],
-                               row["birth_date"].to_pydatetime(),
-                               row["turned_pro"], row["weight_lbs"], row["height_cm"], row["flag_code"],
-                               row["birth_city"], row["birth_country"], row["residence_city"], row["residence_country"],
-                               row["handedness"], row["backhand"])) for index, row in players_from_csv.iterrows()]
+    list_of_players_csv = [(Player(row["player_id"], row["first_name"], row["last_name"],
+                                   row["birth_date"].to_pydatetime(),
+                                   row["turned_pro"], row["weight_lbs"], row["height_cm"], row["flag_code"],
+                                   row["birth_city"], row["birth_country"], row["residence_city"],
+                                   row["residence_country"],
+                                   row["handedness"], row["backhand"])) for index, row in players_from_csv.iterrows()]
 
-    records = get_players_json(list_of_players)
+    players_csv_json = get_players_json(list_of_players_csv)
 
     myclient = pymongo.MongoClient(MONGO_CLIENT)
     mydb = myclient["tennis"]
     mycol = mydb["players"]
-    result = mycol.insert_many(records)
+    result = mycol.insert_many(players_csv_json)
     return result.acknowledged
+
+
+def scrap_flashscore_player_id(player_name):
+    #player_name = first_name + last_name
+
+    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    match_url = 'https://s.livesport.services/search/?q={}&l=1&s=2&f=1%3B1&pid=2&sid=1'.format(player_name)
+    driver.get(match_url)
+    time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
+    id_flashscore = url_flashscore = -1
+    try:
+        element = driver.find_element_by_xpath("//pre").text
+        element_regex = re.search(r'{"results":(\[.+\])}', element)
+        element_json = element_regex.group(1)
+        players_found = json.loads(element_json)
+
+        if len(players_found) == 1:
+            id_flashscore = players_found[0]["id"]
+            url_flashscore = players_found[0]["url"]
+        else:
+            raise NoSuchElementException
+
+    except (NoSuchElementException, AttributeError):
+        print("Player not found: {0}".format(player_name))
+
+    driver.quit()
+
+    return [id_flashscore, url_flashscore]
+
+
+def scrap_flashscore_players():
+    myclient = pymongo.MongoClient(MONGO_CLIENT)
+    mydb = myclient["tennis"]
+    mycol = mydb["players"]
+    players_cursor = mycol.find({}).limit(2)
+    players = pd.DataFrame(list(players_cursor))
+    id_url_pairs = players.apply(
+        lambda row: scrap_flashscore_player_id(row["first_name"] + " " + row["last_name"]), axis=1)
+
+    flashscore_id = []
+    flashscore_url = []
+    for id_url in id_url_pairs:
+        flashscore_id.append(id_url[0])
+        flashscore_url.append(id_url[1])
+
+    players["flashscore_id"] = pd.Series(flashscore_id)
+    players["flashscore_url"] = pd.Series(flashscore_url)

@@ -15,7 +15,7 @@ MONGO_CLIENT = config['mongo']['client']
 
 # Read the data
 list_datasets = []
-for year in range(2016, 2021):
+for year in range(2015, 2021):
     dataset = pd.read_csv("https://raw.githubusercontent.com/davy-datascience/tennis-prediction/master/datasets"
                           "/atp_matches/atp_matches_{}.csv".format(year))
     list_datasets.append(dataset)
@@ -40,27 +40,32 @@ dataset.drop(indexes_davis_cup, inplace=True)
 dataset = extract_scores(dataset)
 
 # Find player ids in csv file and atptour, then affect to dataset : p1_id and p2_id
-dataset, new_players_to_scrap_ids = find_player_ids(dataset)
+dataset, new_players_to_scrap_ids, player_ids_to_keep_csv = find_player_ids(dataset)
 
 # scrap players
-players = scrap_players(new_players_to_scrap_ids)
+'''players = scrap_players(new_players_to_scrap_ids)
 
 # record players in database
-if not (record_players(players)):
-    print("Error while saving scrapped players in database")
+if not (record_players(players, player_ids_to_keep_csv)):
+    print("Error while saving scrapped players in database")'''
+
+# get tournaments ids from flashscore
+scrap_flash_score_players()
+
 
 # Find tournament ids in atptour, then affect to dataset : tournament_id
 dataset, new_tournaments_to_scrap = find_tournament_info(dataset)
 
-tournaments = scrap_tournaments(new_tournaments_to_scrap)
+'''tournaments = scrap_tournaments(new_tournaments_to_scrap)
 if not (record_tournaments(tournaments)):
-    print("Error while saving scrapped tournaments in database")
+    print("Error while saving scrapped tournaments in database")'''
 
 # get tournaments ids from flashscore
 scrap_flash_score_tournaments()
 
 dataset = rename_column_names(dataset)
 
+# Add base feature missing
 dataset["p1_2nd_pts"] = substract_with_numba(dataset["p1_svpt"].to_numpy(), dataset["p1_1stIn"].to_numpy())
 dataset["p2_2nd_pts"] = substract_with_numba(dataset["p2_svpt"].to_numpy(), dataset["p2_1stIn"].to_numpy())
 
