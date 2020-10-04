@@ -127,7 +127,8 @@ def match_tournament(name, year, tournaments, tournaments_by_year, new_tournamen
             if name in tournaments_by_year.get(year - 1):
                 tournaments[name] = tournaments_by_year.get(year - 1).get(name)["id"]
                 new_tournaments_to_scrap.append([tournaments_by_year.get(year - 1).get(name)["id"],
-                                                 tournaments_by_year.get(year - 1).get(name)["formatted_name"], year - 1])
+                                                 tournaments_by_year.get(year - 1).get(name)["formatted_name"],
+                                                 year - 1])
             else:
                 tournaments[name] = - 1
         else:
@@ -190,10 +191,11 @@ def find_tournament_info(dataset):
     return dataset, new_tournaments_to_scrap
 
 
-def scrap_tournament(tournament_id, tournament_formatted_name, year):
+def scrap_tournament(tournament_id, tournament_formatted_name, year, url):
     driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    driver.maximize_window()
     match_url = 'https://www.atptour.com/en/tournaments/{0}/{1}/overview'.format(tournament_formatted_name,
-                                                                                 tournament_id)
+                                                                                 tournament_id) if url is None else url
     driver.get(match_url)
     time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
 
@@ -221,11 +223,14 @@ def scrap_tournament(tournament_id, tournament_formatted_name, year):
 
         surface = driver.find_element_by_xpath("//div[@class='surface-bottom']/div[2]").text
 
-        tournament = Tournament(tournament_id, name, tournament_formatted_name, city, country, surface,
-                                number_of_competitors, level)
+        tournament = Tournament(tournament_id, None, name, tournament_formatted_name, city, country, surface,
+                                number_of_competitors, level, None)
     except NoSuchElementException:
-        match_url = 'https://www.atptour.com/en/scores/archive/{0}/{1}/{2}/results'.format(tournament_formatted_name,
-                                                                                           tournament_id, year)
+        match_url = 'https://www.atptour.com/en/scores/archive/{0}/{1}/{2}/results' \
+            .format(tournament_formatted_name, tournament_id, year) if url is None else url
+        driver.quit()
+        driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+        driver.maximize_window()
         driver.get(match_url)
         time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
         try:
@@ -250,12 +255,11 @@ def scrap_tournament(tournament_id, tournament_formatted_name, year):
             surface = driver.find_element_by_xpath(
                 "//td[@class='tourney-details-table-wrapper']/table/tbody/tr/td[2]/div[2]/div/span").text
 
-            tournament = Tournament(tournament_id, name, tournament_formatted_name, city, country, surface,
-                                    number_of_competitors, level)
+            tournament = Tournament(tournament_id, None, name, tournament_formatted_name, city, country, surface,
+                                    number_of_competitors, level, None)
 
         except NoSuchElementException:
-            print("Couldn't find tournament '{0}' with id {1} in {2}".format(tournament_formatted_name, tournament_id,
-                                                                             year))
+            pass
 
     driver.quit()
 
@@ -263,13 +267,30 @@ def scrap_tournament(tournament_id, tournament_formatted_name, year):
 
 
 def scrap_tournaments(tournaments_info):
+    # TODO DELETE NEXT LINE
+    #tournaments_info = new_tournaments_to_scrap.copy()
     tournaments = []
+    tournaments_not_found = []
     for tournament_info in tournaments_info:
-        tournament = scrap_tournament(tournament_info[0], tournament_info[1],
-                                      tournament_info[2] if len(tournament_info) > 2 else None)
+        if len(tournament_info) > 2:
+            tournament = scrap_tournament(tournament_info[0], tournament_info[1], tournament_info[2], None)
+        else:
+            tournament = scrap_tournament(tournament_info[0], tournament_info[1], None, None)
+
         if tournament is not None:
             tournaments.append(tournament)
+        else:
+            print("Couldn't find tournament '{0}' with id {1}".format(tournament_info[1],
+                                                                      tournament_info[0]))
+            tournaments_not_found.append(tournament_info)
 
+    return tournaments
+
+
+def scrap_last_tournaments(tournaments):
+    tournaments_to_scrap = pd.read_csv("datasets/tournaments_to_scrap_again.csv")
+    tourn = list(tournaments_to_scrap.apply(lambda row: scrap_tournament(row["id"], None, None, row["url"]), axis=1))
+    tournaments += tourn
     return tournaments
 
 

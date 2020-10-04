@@ -3,9 +3,11 @@ from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import train_test_split
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
+
+from src.Classes.match import get_match_from_series
 from src.data_preparation import *
 from src.scrap_atptour_tournaments import *
-from src.scrap_flashscore_tournaments import scrap_flash_score_tournaments
+from src.scrap_flashscore_tournaments import scrap_flash_score_tournaments, add_flashscore_tournament_ids
 from src.scrap_players import *
 
 config = configparser.ConfigParser()
@@ -15,7 +17,7 @@ MONGO_CLIENT = config['mongo']['client']
 
 # Read the data
 list_datasets = []
-for year in range(2015, 2021):
+for year in range(1990, 2021):
     dataset = pd.read_csv("https://raw.githubusercontent.com/davy-datascience/tennis-prediction/master/datasets"
                           "/atp_matches/atp_matches_{}.csv".format(year))
     list_datasets.append(dataset)
@@ -42,37 +44,80 @@ dataset = extract_scores(dataset)
 # Find player ids in csv file and atptour, then affect to dataset : p1_id and p2_id
 dataset, new_players_to_scrap_ids, player_ids_to_keep_csv = find_player_ids(dataset)
 
-# scrap players
-'''players = scrap_players(new_players_to_scrap_ids)
+players_from_csv = get_players_from_csv(player_ids_to_keep_csv)
+players_scrapped = scrap_players(new_players_to_scrap_ids)
+players = players_from_csv + players_scrapped
+
+players = scrap_flashscore_players(players)
 
 # record players in database
-if not (record_players(players, player_ids_to_keep_csv)):
-    print("Error while saving scrapped players in database")'''
+if not (record_players(players)):
+    print("Error while saving scrapped players in database")
 
-# get tournaments ids from flashscore
-scrap_flash_score_players()
+
+dataset = add_flashscore_players_info(dataset, players)
 
 
 # Find tournament ids in atptour, then affect to dataset : tournament_id
 dataset, new_tournaments_to_scrap = find_tournament_info(dataset)
 
-'''tournaments = scrap_tournaments(new_tournaments_to_scrap)
-if not (record_tournaments(tournaments)):
-    print("Error while saving scrapped tournaments in database")'''
-
+tournaments = scrap_tournaments(new_tournaments_to_scrap)
+tournaments = scrap_last_tournaments(tournaments)
 # get tournaments ids from flashscore
-scrap_flash_score_tournaments()
+tournaments = scrap_flash_score_tournaments(tournaments)
 
-dataset = rename_column_names(dataset)
+if not (record_tournaments(tournaments)):
+    print("Error while saving scrapped tournaments in database")
 
-# Add base feature missing
-dataset["p1_2nd_pts"] = substract_with_numba(dataset["p1_svpt"].to_numpy(), dataset["p1_1stIn"].to_numpy())
-dataset["p2_2nd_pts"] = substract_with_numba(dataset["p2_svpt"].to_numpy(), dataset["p2_1stIn"].to_numpy())
+dataset = add_flashscore_tournament_ids(dataset, tournaments)
 
 dataset["p1_wins"] = True
 
 # Remove columns useless
 dataset.drop(columns=["tourney_name", "winner_id", "winner_name", "loser_id", "loser_name", "score"], inplace=True)
+
+dataset = rename_column_names(dataset)
+
+
+dataset.drop(dataset[(dataset["p1_SvGms"] == 0) | (dataset["p2_SvGms"] == 0) | (dataset["p1_1stIn"] == 0) |
+                     (dataset["p2_1stIn"] == 0) | (dataset["p1_2nd_pts"] == 0) | (dataset["p2_2nd_pts"] == 0)]
+             .index, inplace=True)
+
+# Add base feature missing
+dataset["p1_2nd_pts"] = substract_with_numba(dataset["p1_svpt"].to_numpy(), dataset["p1_1stIn"].to_numpy())
+dataset["p2_2nd_pts"] = substract_with_numba(dataset["p2_svpt"].to_numpy(), dataset["p2_1stIn"].to_numpy())
+
+dataset["p1_svpt_won"] = add_with_numba(dataset["p1_1stWon"].to_numpy(), dataset["p1_2ndWon"].to_numpy())
+dataset["p2_svpt_won"] = add_with_numba(dataset["p2_1stWon"].to_numpy(), dataset["p2_2ndWon"].to_numpy())
+
+dataset["p1_svpt_ratio"] = divide_with_numba(dataset["p1_svpt_won"].to_numpy(), dataset["p1_svpt"].to_numpy())
+dataset["p2_svpt_ratio"] = divide_with_numba(dataset["p2_svpt_won"].to_numpy(), dataset["p2_svpt"].to_numpy())
+
+dataset["p1_1stWon_ratio"] = divide_with_numba(dataset["p1_1stWon"].to_numpy(), dataset["p1_1stIn"].to_numpy())
+dataset["p2_1stWon_ratio"] = divide_with_numba(dataset["p2_1stWon"].to_numpy(), dataset["p2_1stIn"].to_numpy())
+
+dataset["p1_2ndWon_ratio"] = divide_with_numba(dataset["p1_2ndWon"].to_numpy(), dataset["p1_2nd_pts"].to_numpy())
+dataset["p2_2ndWon_ratio"] = divide_with_numba(dataset["p2_2ndWon"].to_numpy(), dataset["p2_2nd_pts"].to_numpy())
+
+p1_breaks = substract_with_numba(dataset["p2_bpFaced"].to_numpy(), dataset["p2_bpSaved"].to_numpy())
+dataset["p1_SvGmsWon"] = substract_with_numba(dataset["p1_SvGms"].to_numpy(), p1_breaks)
+p2_breaks = substract_with_numba(dataset["p1_bpFaced"].to_numpy(), dataset["p1_bpSaved"].to_numpy())
+dataset["p2_SvGmsWon"] = substract_with_numba(dataset["p2_SvGms"].to_numpy(), p2_breaks)
+
+dataset["p1_SvGmsWon_ratio"] = divide_with_numba(dataset["p1_SvGmsWon"].to_numpy(), dataset["p1_SvGms"].to_numpy())
+dataset["p2_SvGmsWon_ratio"] = divide_with_numba(dataset["p2_SvGmsWon"].to_numpy(), dataset["p2_SvGms"].to_numpy())
+
+dataset["p1_1st_serve_ratio"] = divide_with_numba(dataset["p1_1stIn"].to_numpy(), dataset["p1_svpt"].to_numpy())
+dataset["p2_1st_serve_ratio"] = divide_with_numba(dataset["p2_1stIn"].to_numpy(), dataset["p2_svpt"].to_numpy())
+
+dataset["p1_bpSaved_ratio"] = [get_bp_saved_ratio(row[0], row[1]) for row in dataset[["p1_bpSaved", "p1_bpFaced"]].to_numpy()]
+dataset["p2_bpSaved_ratio"] = [get_bp_saved_ratio(row[0], row[1]) for row in dataset[["p2_bpSaved", "p2_bpFaced"]].to_numpy()]
+
+
+
+
+
+list_matches = list(dataset.apply(lambda row: get_match_from_series(row), axis=1))
 
 # Record Matches
 records = json.loads(dataset.T.to_json()).values()
@@ -82,6 +127,7 @@ mycol = mydb["matches"]
 mycol.insert_many(records)
 
 
+# TODO DELETE NEXT LINE
 games = extract_games(dataset["score"])
 
 dataset["p1_games_won"] = [game[0] for game in games]
@@ -94,17 +140,12 @@ dataset["p1_ace_ratio"] = divide_with_numba(dataset["p1_ace"].to_numpy(), datase
 dataset["p2_ace_ratio"] = divide_with_numba(dataset["p2_ace"].to_numpy(), dataset["p2_svpt"].to_numpy())
 dataset["p1_df_ratio"] = divide_with_numba(dataset["p1_df"].to_numpy(), dataset["p1_svpt"].to_numpy())
 dataset["p2_df_ratio"] = divide_with_numba(dataset["p2_df"].to_numpy(), dataset["p2_svpt"].to_numpy())
-dataset["p1_1stIn_ratio"] = divide_with_numba(dataset["p1_1stIn"].to_numpy(), dataset["p1_svpt"].to_numpy())
-dataset["p2_1stIn_ratio"] = divide_with_numba(dataset["p2_1stIn"].to_numpy(), dataset["p2_svpt"].to_numpy())
-dataset["p1_1stWon_ratio"] = divide_with_numba(dataset["p1_1stWon"].to_numpy(), dataset["p1_1stIn"].to_numpy())
-dataset["p2_1stWon_ratio"] = divide_with_numba(dataset["p2_1stWon"].to_numpy(), dataset["p2_1stIn"].to_numpy())
-dataset["p1_2ndWon_ratio"] = divide_with_numba(dataset["p1_2ndWon"].to_numpy(), dataset["p1_2nd_pts"].to_numpy())
-dataset["p2_2ndWon_ratio"] = divide_with_numba(dataset["p2_2ndWon"].to_numpy(), dataset["p2_2nd_pts"].to_numpy())
+
+
 # Break points Faced per return-game
 dataset["p1_bpFaced_ratio"] = divide_with_numba(dataset["p1_bpFaced"].to_numpy(), dataset["p1_SvGms"].to_numpy())
 dataset["p2_bpFaced_ratio"] = divide_with_numba(dataset["p2_bpFaced"].to_numpy(), dataset["p2_SvGms"].to_numpy())
-dataset["p1_bpSaved_ratio"] = [get_bp_saved_ratio(row[0], row[1]) for row in dataset[["p1_bpSaved", "p1_bpFaced"]].to_numpy()]
-dataset["p2_bpSaved_ratio"] = [get_bp_saved_ratio(row[0], row[1]) for row in dataset[["p2_bpSaved", "p2_bpFaced"]].to_numpy()]
+
 dataset['tourney_date'] = pd.to_datetime(dataset['tourney_date'], format="%Y%m%d")
 
 

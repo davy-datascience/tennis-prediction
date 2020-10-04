@@ -9,7 +9,7 @@ from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 import configparser
 from datetime import date
-from src.Classes.player import Player, get_players_json
+from src.Classes.player import Player, get_players_json, get_player_from_series, get_players_from_csv_dataframe
 from datetime import datetime
 
 config = configparser.ConfigParser()
@@ -233,7 +233,7 @@ def scrap_player(player_id):
         except NoSuchElementException:
             pass
 
-        player = Player(player_id, first_name, last_name, birth_date, turned_pro, weight, height,
+        player = Player(player_id, None, None, first_name, last_name, birth_date, turned_pro, weight, height,
                         flag_code, b_city, b_country, r_city, r_country, hand, back_hand)
 
     except Exception as ex:
@@ -255,7 +255,7 @@ def scrap_players(players_ids):
 
     return players
 
-
+# TODO DELETE cause in player.py
 def format_player(player):
     residence = player["residence"]
     birth_place = player["birthplace"]
@@ -295,43 +295,17 @@ def format_player(player):
     return player
 
 
-def record_players(players, player_ids_to_keep_csv):
+def record_players(players):
     # Record scrapped players
     players_json = get_players_json(players)
     myclient = pymongo.MongoClient(MONGO_CLIENT)
     mydb = myclient["tennis"]
     mycol = mydb["players"]
-    mycol.insert_many(players_json)
-
-    # Record players from csv file
-    players_from_csv = pd.read_csv("datasets/atp_players.csv")
-    indexes_to_keep = players_from_csv[players_from_csv["player_id"].isin(player_ids_to_keep_csv)].index
-    players_from_csv = players_from_csv[players_from_csv.index.isin(indexes_to_keep)]
-    players_from_csv = players_from_csv.apply(lambda row: format_player(row), axis=1)
-    players_from_csv.drop(columns=["first_initial", "full_name", "player_url", "birthdate", "weight_kg", "height_ft",
-                                   "height_inches", "residence", "birthplace", "birth_year", "birth_month",
-                                   "birth_day"],
-                          inplace=True)
-
-    list_of_players_csv = [(Player(row["player_id"], row["first_name"], row["last_name"],
-                                   row["birth_date"].to_pydatetime(),
-                                   row["turned_pro"], row["weight_lbs"], row["height_cm"], row["flag_code"],
-                                   row["birth_city"], row["birth_country"], row["residence_city"],
-                                   row["residence_country"],
-                                   row["handedness"], row["backhand"])) for index, row in players_from_csv.iterrows()]
-
-    players_csv_json = get_players_json(list_of_players_csv)
-
-    myclient = pymongo.MongoClient(MONGO_CLIENT)
-    mydb = myclient["tennis"]
-    mycol = mydb["players"]
-    result = mycol.insert_many(players_csv_json)
+    result = mycol.insert_many(players_json)
     return result.acknowledged
 
 
-def scrap_flashscore_player_id(player_name):
-    #player_name = first_name + last_name
-
+def scrap_flashscore_player_info(player_name):
     driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
     match_url = 'https://s.livesport.services/search/?q={}&l=1&s=2&f=1%3B1&pid=2&sid=1'.format(player_name)
     driver.get(match_url)
@@ -346,25 +320,59 @@ def scrap_flashscore_player_id(player_name):
         if len(players_found) == 1:
             id_flashscore = players_found[0]["id"]
             url_flashscore = players_found[0]["url"]
-        else:
-            raise NoSuchElementException
+        elif len(players_found) > 1:
+            for player in players_found:
+                if player["url"] == str.lower(player_name).replace(" ", "-"):
+                    id_flashscore = player["id"]
+                    url_flashscore = player["url"]
+                    break
 
     except (NoSuchElementException, AttributeError):
-        print("Player not found: {0}".format(player_name))
+        pass
 
     driver.quit()
 
     return [id_flashscore, url_flashscore]
 
 
+#TODO DELETE
+'''def get_flashscore_info_manual_collect(player_id, flashscore_id, flashscore_url, players_manual_collect):
+
+    if flashscore_id != -1:
+        return [flashscore_id, flashscore_url]
+    else:
+        try:
+            print(len(players_manual_collect))
+            print("player_id: {0} ; flashscore_id: {1} ; flashscore_url: {2}".format(player_id, flashscore_id, flashscore_url))
+            player_found = players_manual_collect.loc[players_manual_collect["player_id"] == player_id]
+            print("len: {}".format(len(player_found.index)))
+            return [player_found.iloc[0]["flashscore_id"], player_found.iloc[0]["flashscore_url"]]
+        except IndexError:
+            print("player not found id: '{}'".format(player_id))
+            return [-1, -1]
+
+
+#TODO DELETE
+def add_flashscore_info(mongo_id, flashscore_id, flashscore_url):
+    myclient = pymongo.MongoClient(MONGO_CLIENT)
+    mydb = myclient["tennis"]
+    mycol = mydb["players"]
+
+    myquery = {"_id": mongo_id}
+    newvalues = {"$set": {"flashscore_id": flashscore_id, "flashscore_url": flashscore_url}}
+    mycol.update_many(myquery, newvalues)
+
+
+# TODO DELETE
 def scrap_flashscore_players():
     myclient = pymongo.MongoClient(MONGO_CLIENT)
     mydb = myclient["tennis"]
     mycol = mydb["players"]
-    players_cursor = mycol.find({}).limit(2)
+    players_cursor = mycol.find({})
     players = pd.DataFrame(list(players_cursor))
+
     id_url_pairs = players.apply(
-        lambda row: scrap_flashscore_player_id(row["first_name"] + " " + row["last_name"]), axis=1)
+        lambda row: scrap_flashscore_player_info(row["last_name"] + " " + row["first_name"]), axis=1)
 
     flashscore_id = []
     flashscore_url = []
@@ -374,3 +382,95 @@ def scrap_flashscore_players():
 
     players["flashscore_id"] = pd.Series(flashscore_id)
     players["flashscore_url"] = pd.Series(flashscore_url)
+
+    # Uncomment next lines to retrieve players not found on flashscore
+    not_found = players[players["flashscore_id"] == -1]
+    not_found.to_csv("players_not_found_flashscore", index=False)
+
+    # I manually collected the flashscore coresponding id and url
+    players_manual_collect = pd.read_csv("datasets/players_flashscore_manual_collect.csv")
+
+    id_url_pairs_collect = players.apply(
+        lambda row: get_flashscore_info_manual_collect(row["player_id"], row["flashscore_id"],
+                                                       row["flashscore_url"], players_manual_collect), axis=1)
+
+    flashscore_id_collect = []
+    flashscore_url_collect = []
+    for id_url in id_url_pairs_collect:
+        flashscore_id_collect.append(id_url[0])
+        flashscore_url_collect.append(id_url[1])
+
+    players["flashscore_id"] = pd.Series(flashscore_id_collect)
+    players["flashscore_url"] = pd.Series(flashscore_url_collect)
+
+    # Remove all rows
+    removed = mycol.remove({})
+    list_players = list(players.apply(lambda row: get_player_from_series(row), axis=1))
+
+    players_json = get_players_json(list_players)
+
+    # Insert new rows updated
+    mycol.insert_many(players_json)'''
+
+
+def get_players_from_csv(player_to_keep_ids):
+    players_from_csv = pd.read_csv("datasets/atp_players.csv")
+    indexes_to_keep = players_from_csv[players_from_csv["player_id"].isin(player_to_keep_ids)].index
+    players_from_csv = players_from_csv[players_from_csv.index.isin(indexes_to_keep)]
+    players = get_players_from_csv_dataframe(players_from_csv)
+    return players
+
+
+def scrap_flashscore_players(players):
+
+    id_url_pairs = []
+
+    for player in players:
+        id_url_pairs.append(scrap_flashscore_player_info(player.last_name + " " + player.first_name))
+
+    for i in range(len(id_url_pairs)):
+        setattr(players[i], "flashscore_id", id_url_pairs[i][0])
+        setattr(players[i], "flashscore_url", id_url_pairs[i][1])
+
+    not_found = []
+    for player in players:
+        if player.flashscore_id == -1:
+            not_found.append(player)
+
+    # I manually collected the flashscore coresponding id and url
+    players_manual_collect = pd.read_csv("datasets/players_flashscore_manual_collect.csv")
+
+    for player in players:
+        if player.flashscore_id == -1:
+            player_found = players_manual_collect.loc[players_manual_collect["player_id"] == player.atptour_id]
+            if len(player_found.index) == 1:
+                setattr(player, "flashscore_id", player_found.iloc[0]["flashscore_id"])
+                setattr(player, "flashscore_url", player_found.iloc[0]["flashscore_url"])
+            else:
+                print("Player not found on flashscore after manual collect: " + player.atptour_id)
+
+    return players
+
+
+def add_flashscore_player_id(player_atptour_id, players):
+    for player in players:
+        if player.atptour_id == player_atptour_id:
+            return player.flashscore_id
+    print("player not found: " + player_atptour_id)
+    return -1
+
+
+def add_flashscore_player_url(player_atptour_id, players):
+    for player in players:
+        if player.atptour_id == player_atptour_id:
+            return player.flashscore_url
+    print("player not found: " + player_atptour_id)
+    return -1
+
+
+def add_flashscore_players_info(dataset, players):
+    dataset["p1_flashscore_id"] = dataset.apply(lambda row: add_flashscore_player_id(row["p1_id"], players), axis=1)
+    dataset["p1_flashscore_url"] = dataset.apply(lambda row: add_flashscore_player_url(row["p1_id"], players), axis=1)
+    dataset["p2_flashscore_id"] = dataset.apply(lambda row: add_flashscore_player_id(row["p2_id"], players), axis=1)
+    dataset["p2_flashscore_url"] = dataset.apply(lambda row: add_flashscore_player_url(row["p2_id"], players), axis=1)
+    return dataset

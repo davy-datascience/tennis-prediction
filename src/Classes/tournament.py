@@ -3,8 +3,10 @@ from json import JSONEncoder
 
 
 class Tournament:
-    def __init__(self, id, name, formatted_name, city, country, surface, number_of_competitors, level):
-        self.id = id
+    def __init__(self, atptour_id, flashscore_id, name, formatted_name, city, country, surface, number_of_competitors,
+                 level, is_itf):
+        self.atptour_id = atptour_id
+        self.flashscore_id = flashscore_id
         self.name = name
         self.formatted_name = formatted_name
         self.city = city
@@ -12,6 +14,7 @@ class Tournament:
         self.surface = surface
         self.number_of_competitors = number_of_competitors
         self.level = level
+        self.is_itf = is_itf
 
 
 class TournamentEncoder(JSONEncoder):
