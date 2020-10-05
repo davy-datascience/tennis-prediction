@@ -27,6 +27,12 @@ class Player:
         self.handedness = handedness
         self.back_hand = back_hand
 
+    def to_dict(self):
+        return {
+            "atptour_id": self.atptour_id,
+            "last_name": self.last_name
+        }
+
 
 class PlayerEncoder(JSONEncoder):
     def default(self, obj):
