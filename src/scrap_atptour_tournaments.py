@@ -6,192 +6,122 @@ import pymongo
 import configparser
 from selenium.common.exceptions import NoSuchElementException
 from src.Classes.tournament import *
+from datetime import datetime
+import random
 
 config = configparser.ConfigParser()
 config.read("src/config.ini")
 MONGO_CLIENT = config['mongo']['client']
 
 
-def scrap_tournaments_by_year(year):
-    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
-    match_url = 'https://www.atptour.com/en/scores/results-archive?year={}'.format(year)
-    driver.get(match_url)
-    time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
+def get_tournaments_by_year(year_from, year_to):
+    tournaments_by_year = {}
+    tour_ids = []
+    tour_names = []
+    tour_formatted_names = []
+    tour_years = []
+    for year in range(year_from, year_to + 1):
+        url = 'https://www.atptour.com/-/ajax/Scores/GetTournamentArchiveForYear/{}'.format(year)
+        driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+        driver.get(url)
+        time.sleep(random.uniform(2, 5))
+        tournaments_scrapped = None
+        try:
+            content = driver.find_element_by_xpath("//pre").text
+            tournaments_scrapped = json.loads(content)
+        except NoSuchElementException:
+            print("Couldn't scrap tournaments for year {}".format(year))
 
-    levels = []
-    elements = driver.find_elements_by_xpath("//tr[@class='tourney-result']/td[2]/img")
-    for element in elements:
-        img_src = element.get_attribute("src")
-        level = re.search(r"categorystamps_(.+)\.", img_src)
-        if level is None:
-            print("tournament level not found from {0}".format(img_src))
-        else:
-            levels.append(level.group(1))
+        if tournaments_scrapped is not None:
+            tournaments_by_year[year] = {tournament["Key"]: {"id": int(tournament["Value"]),
+                                                             "formatted_name": tournament["DataAttributes"][
+                                                                 "descriptor"]}
+                                         for tournament in tournaments_scrapped}
 
-    names = []
-    elements = driver.find_elements_by_xpath("//tr[@class='tourney-result']/td[3]/span[1]")
-    for element in elements:
-        names.append(element.text)
-
-    cities = []
-    countries = []
-    elements = driver.find_elements_by_xpath("//tr[@class='tourney-result']/td[3]/span[2]")
-    for element in elements:
-        location_regex = re.search("(.+), (.+)", element.text)
-        cities.append(location_regex.group(1))
-        countries.append(location_regex.group(2))
-
-    number_of_competitors = []
-    elements = driver.find_elements_by_xpath("//tr[@class='tourney-result']/td[4]/div/div/a[1]")
-    for element in elements:
-        number_of_competitors.append(int(element.text))
-
-    surfaces = []
-    elements = driver.find_elements_by_xpath("//tr[@class='tourney-result']/td[5]/div/div")
-    for element in elements:
-        surfaces.append(element.text)
-
-    ids = []
-    formatted_names = []  # name need to access tournament info link on atptour
-    elements = driver.find_elements_by_xpath("//tr[@class='tourney-result']/td[8]/a")
-    for element in elements:
-        href = element.get_attribute("href")
-        link_info = re.search("/(.+)/([0-9]+)/[0-9]+/results$", href)
-        if link_info is None:
-            print("tournament id not found from {0}".format(href))
-        else:
-            formatted_names.append(link_info.group(1))
-            ids.append(int(link_info.group(2)))
-
-    driver.quit()
-
-    tournaments = pd.concat(
-        [pd.Series(ids), pd.Series(names), pd.Series(formatted_names), pd.Series(cities), pd.Series(countries),
-         pd.Series(levels), pd.Series(number_of_competitors),
-         pd.Series(surfaces)], axis=1)
-    tournaments.columns = ["id", "name", "formatted_name", "city", "country", "level", "number_of_competitors",
-                           "surface"]
-
-    return tournaments
-
-
-def record_tournaments_by_year(year):
-    tournaments = scrap_tournaments_by_year(year)
-
-    records = json.loads(tournaments.T.to_json()).values()
-
-    myclient = pymongo.MongoClient(MONGO_CLIENT)
-    mydb = myclient["tennis"]
-    mycol = mydb["tournaments"]
-    mycol.insert_many(records)
-
-
-def scrap_tournament_id(year, tournaments_by_year):
-    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
-    url = 'https://www.atptour.com/-/ajax/Scores/GetTournamentArchiveForYear/{}'.format(year)
-    driver.get(url)
-    time.sleep(1)
-    tournaments_scrapped = None
-    try:
-        content = driver.find_element_by_xpath("//pre").text
-        tournaments_scrapped = json.loads(content)
-    except NoSuchElementException:
-        print("Couldn't scrap tournaments for year {}".format(year))
-
-    driver.quit()
-
-    if tournaments_scrapped is not None:
-        tournaments_by_year[year] = {tournament["Key"]: {"id": int(tournament["Value"]),
-                                                         "formatted_name": tournament["DataAttributes"]["descriptor"]}
-                                     for tournament in tournaments_scrapped}
-
-
-def match_tournament(name, year, tournaments, tournaments_by_year, new_tournaments_to_scrap):
-    """if name.startswith("Davis Cup"):
-        name = "Davis Cup\""""
-    if name not in tournaments:
-        if year not in tournaments_by_year:
-            scrap_tournament_id(year, tournaments_by_year)
-
-        if year not in tournaments_by_year and year - 1 not in tournaments_by_year:
-            scrap_tournament_id(year, tournaments_by_year)
-
-        if year in tournaments_by_year:
-            if name in tournaments_by_year.get(year):
-                tournaments[name] = tournaments_by_year.get(year).get(name)["id"]
-                new_tournaments_to_scrap.append([tournaments_by_year.get(year).get(name)["id"],
-                                                 tournaments_by_year.get(year).get(name)["formatted_name"], year])
-            else:
-                tournaments[name] = - 1
-        elif year - 1 in tournaments_by_year:
-            if name in tournaments_by_year.get(year - 1):
-                tournaments[name] = tournaments_by_year.get(year - 1).get(name)["id"]
-                new_tournaments_to_scrap.append([tournaments_by_year.get(year - 1).get(name)["id"],
-                                                 tournaments_by_year.get(year - 1).get(name)["formatted_name"],
-                                                 year - 1])
-            else:
-                tournaments[name] = - 1
-        else:
-            tournaments[name] = - 1
-
-    return tournaments[name]
+            for tournament in tournaments_scrapped:
+                tour_ids.append(int(tournament["Value"]))
+                tour_names.append(tournament["Key"])
+                tour_formatted_names.append(tournament["DataAttributes"]["descriptor"])
+                tour_years.append(year)
+        driver.quit()
+    # return tournaments_by_year
+    return pd.DataFrame({"name": tour_names, "formatted_name": tour_formatted_names, "atp_id": tour_ids,
+                         "year": tour_years})
 
 
 def get_tournaments_ids(dataset):
-    start_time = time.time()
+    tournaments_by_year = get_tournaments_by_year(1990, datetime.today().year)
 
-    tournaments = {}
-    new_tournaments_to_scrap = []
+    tour_distinct_names = dataset[["tourney_name", "year"]].drop_duplicates(subset=["tourney_name"], keep="last")
 
-    tournaments_by_year = {}
+    tour_distinct_names["atp_formatted_name"] = tour_distinct_names.apply(
+        lambda row: tournaments_by_year[tournaments_by_year["name"] == row["tourney_name"]]["formatted_name"].iloc[0]
+        if len(tournaments_by_year[tournaments_by_year["name"] == row["tourney_name"]].index) > 0 else None, axis=1)
 
-    tournaments_ids = [match_tournament(row[0], row[1], tournaments, tournaments_by_year,
-                                        new_tournaments_to_scrap) for row in
-                       dataset.reindex(index=dataset.index[::-1]).to_numpy()]
+    tour_distinct_names["atp_id"] = tour_distinct_names.apply(
+        lambda row: tournaments_by_year[tournaments_by_year["name"] == row["tourney_name"]]["atp_id"].iloc[0]
+        if len(tournaments_by_year[tournaments_by_year["name"] == row["tourney_name"]].index) > 0 else -1, axis=1)
 
-    print("---getTournamentsIds  %s seconds ---" % (time.time() - start_time))
-    return tournaments_ids[::-1], new_tournaments_to_scrap
+    '''tour_not_found = tour_distinct_names[tour_distinct_names.apply(
+        lambda row: len(tournaments_by_year[tournaments_by_year["name"] == row["tourney_name"]].index) == 0, axis=1)]'''
+
+    tourn_manual = pd.read_csv("datasets/tournaments_manual_collect.csv")
+
+    #tour_distinct_names['atp_formatted_name2'] = tour_distinct_names.apply(lambda row: retrieve_missing_tournaments(row["tourney_name"], row["atp_formatted_name"], row["atp_id"], tourn_manual), axis=1)
 
 
-def retrieve_missing_tournament_id(tournament_name, atptour_id, tournament_ids):
-    if atptour_id == -1:
-        '''if tournament_name.startswith("Davis Cup"):
-            tournament_name = "Davis Cup"'''
-        new_id = None
-        try:
-            new_id = tournament_ids.loc[tournament_name][0]
-        except KeyError:
-            print("Couldn't find tournament '{}'".format(tournament_name))
-        return new_id
+    tour_distinct_names['atp_formatted_name'] = tour_distinct_names.apply(
+        lambda row: tourn_manual[tourn_manual["name"] == row["tourney_name"]]["formatted_name"].iloc[0]
+        if row["atp_id"] == -1 else row["atp_formatted_name"], axis=1)
+
+    tour_distinct_names["atp_id"] = tour_distinct_names.apply(
+        lambda row: tourn_manual[tourn_manual["name"] == row["tourney_name"]]["id"].iloc[0]
+        if row["atp_id"] == -1 else row["atp_id"], axis=1)
+
+    return tour_distinct_names
+
+
+def correct_names(name):
+    if name == "St Petersburg":
+        return "St. Petersburg"
+    elif name == "Us Open":
+        return "US Open"
+    elif name == "Rio De Janeiro":
+        return "Rio de Janeiro"
+    elif name == "Stuttgart Outdoor":
+        return "Stuttgart"
+    elif name == "Stuttgart Masters":
+        return "Stuttgart Indoor"
+    elif name == "Hamburg Masters":
+        return "Hamburg"
+    elif name == "Stockholm Masters":
+        return "Stockholm"
+    elif name == "Tokyo Indoor":
+        return "Tokyo"
+    elif name == "Tokyo Outdoor":
+        return "Tokyo"
+    elif name == "Sydney Indoor":
+        return "Sydney"
+    elif name == "Sydney Outdoor":
+        return "Sydney"
+
     else:
-        return atptour_id
+        return name
 
 
-def retrieve_missing_tournament_ids(dataset):
-    tournament_ids_manual_collect = pd.read_csv("datasets/tournament_ids_matching_manual_collect.csv",
-                                                index_col="name")
-
-    tournament_ids_dataframe = dataset.apply(lambda row: retrieve_missing_tournament_id(row["tourney_name"],
-                                                                                        row["tournament_id"],
-                                                                                        tournament_ids_manual_collect),
-                                             axis=1)
-
-    return tournament_ids_dataframe, tournament_ids_manual_collect.values.tolist()
+def find_atp_tournaments(dataset):
+    dataset["tourney_name"] = dataset.apply(lambda row: correct_names(row["tourney_name"]), axis=1)
+    dataset["year"] = dataset.apply(lambda row: int(row["tourney_id"][:4]), axis=1)
+    tournaments = get_tournaments_ids(dataset)
+    return tournaments
 
 
-def find_tournament_info(dataset):
-    # Find tournaments corresponding ids (csv file + scrapping)
-    dataset["year"] = [int(str(row)[:4]) for row in dataset["tourney_date"].to_numpy()]
-    dataset["tournament_id"], new_tournaments_to_scrap = get_tournaments_ids(dataset[["tourney_name", "year"]])
-    # tournament_names_notFound = pd.Series(dataset[dataset["tournament_id"] == -1]["tourney_name"]).unique()
-    dataset["tournament_id"], manual_collect_tournament_ids = retrieve_missing_tournament_ids(dataset)
+def scrap_tournament(tournament):
+    tournament_id = tournament["atp_id"]
+    tournament_formatted_name = tournament["atp_formatted_name"]
+    year = tournament["year"]
+    url = None
 
-    new_tournaments_to_scrap += manual_collect_tournament_ids
-
-    return dataset, new_tournaments_to_scrap
-
-
-def scrap_tournament(tournament_id, tournament_formatted_name, year, url):
     driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
     driver.maximize_window()
     match_url = 'https://www.atptour.com/en/tournaments/{0}/{1}/overview'.format(tournament_formatted_name,
@@ -199,7 +129,7 @@ def scrap_tournament(tournament_id, tournament_formatted_name, year, url):
     driver.get(match_url)
     time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
 
-    tournament = None
+    #tournament = None
     try:
         name = driver.find_element_by_xpath("//div[@class='player-profile-hero-name']/div[1]").text
         if name == "":
@@ -223,8 +153,14 @@ def scrap_tournament(tournament_id, tournament_formatted_name, year, url):
 
         surface = driver.find_element_by_xpath("//div[@class='surface-bottom']/div[2]").text
 
-        tournament = Tournament(tournament_id, None, name, tournament_formatted_name, city, country, surface,
-                                number_of_competitors, level, None)
+        tournament["city"] = city
+        tournament["country"] = country
+        tournament["surface"] = surface
+        tournament["surface"] = surface
+        tournament["number_of_competitors"] = number_of_competitors
+
+        '''tournament = Tournament(tournament_id, None, name, tournament_formatted_name, city, country, surface,
+                                number_of_competitors, level, None)'''
     except NoSuchElementException:
         match_url = 'https://www.atptour.com/en/scores/archive/{0}/{1}/{2}/results' \
             .format(tournament_formatted_name, tournament_id, year) if url is None else url
@@ -255,8 +191,13 @@ def scrap_tournament(tournament_id, tournament_formatted_name, year, url):
             surface = driver.find_element_by_xpath(
                 "//td[@class='tourney-details-table-wrapper']/table/tbody/tr/td[2]/div[2]/div/span").text
 
-            tournament = Tournament(tournament_id, None, name, tournament_formatted_name, city, country, surface,
-                                    number_of_competitors, level, None)
+            '''tournament = Tournament(tournament_id, None, name, tournament_formatted_name, city, country, surface,
+                                    number_of_competitors, level, None)'''
+            tournament["city"] = city
+            tournament["country"] = country
+            tournament["surface"] = surface
+            tournament["surface"] = surface
+            tournament["number_of_competitors"] = number_of_competitors
 
         except NoSuchElementException:
             pass
@@ -266,31 +207,35 @@ def scrap_tournament(tournament_id, tournament_formatted_name, year, url):
     return tournament
 
 
-def scrap_tournaments(tournaments_info):
-    # TODO DELETE NEXT LINE
-    #tournaments_info = new_tournaments_to_scrap.copy()
-    tournaments = []
-    tournaments_not_found = []
-    for tournament_info in tournaments_info:
-        if len(tournament_info) > 2:
-            tournament = scrap_tournament(tournament_info[0], tournament_info[1], tournament_info[2], None)
-        else:
-            tournament = scrap_tournament(tournament_info[0], tournament_info[1], None, None)
-
-        if tournament is not None:
-            tournaments.append(tournament)
-        else:
-            print("Couldn't find tournament '{0}' with id {1}".format(tournament_info[1],
-                                                                      tournament_info[0]))
-            tournaments_not_found.append(tournament_info)
+def scrap_atp_tournaments(tournaments):
+    tournaments = tournaments.apply(scrap_tournament, axis=1)
 
     return tournaments
 
 
-def scrap_last_tournaments(tournaments):
-    tournaments_to_scrap = pd.read_csv("datasets/tournaments_to_scrap_again.csv")
-    tourn = list(tournaments_to_scrap.apply(lambda row: scrap_tournament(row["id"], None, None, row["url"]), axis=1))
-    tournaments += tourn
+def clean_tournaments(tournaments):
+    tournaments["country"] = tournaments.apply(lambda tour: "U.S.A." if tour["country"] == "U.S.A" else tour["country"],
+                                               axis=1)
+
+    tournaments["city"] = tournaments.apply(
+        lambda tour: "Johannesburg" if tour["flash_id"] == "johannesburg" else tour["city"], axis=1)
+    tournaments["country"] = tournaments.apply(
+        lambda tour: "South Africa" if tour["flash_id"] == "johannesburg" else tour["country"], axis=1)
+
+    tournaments["city"] = tournaments.apply(lambda tour: "Nice" if tour["flash_id"] == "nice" else tour["city"], axis=1)
+    tournaments["country"] = tournaments.apply(lambda tour: "France" if tour["flash_id"] == "nice" else tour["country"],
+                                               axis=1)
+
+    tournaments["city"] = tournaments.apply(
+        lambda tour: "St. Poelten" if tour["flash_id"] == "poertschach" else tour["city"], axis=1)
+    tournaments["country"] = tournaments.apply(
+        lambda tour: "Austria" if tour["flash_id"] == "poertschach" else tour["country"], axis=1)
+
+    tournaments["city"] = tournaments.apply(lambda tour: "Memphis" if tour["flash_id"] == "memphis" else tour["city"],
+                                            axis=1)
+    tournaments["country"] = tournaments.apply(
+        lambda tour: "U.S.A." if tour["flash_id"] == "memphis" else tour["country"], axis=1)
+
     return tournaments
 
 

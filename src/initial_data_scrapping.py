@@ -7,7 +7,7 @@ from sklearn.linear_model import LogisticRegression
 from src.Classes.match import get_match_from_series
 from src.data_preparation import *
 from src.scrap_atptour_tournaments import *
-from src.scrap_flashscore_tournaments import scrap_flash_score_tournaments, add_flashscore_tournament_ids
+from src.scrap_flashscore_tournaments import scrap_flash_score_tournaments, add_tournament_info
 from src.scrap_players import *
 
 config = configparser.ConfigParser()
@@ -18,21 +18,43 @@ MONGO_CLIENT = config['mongo']['client']
 # Read the data
 list_datasets = []
 for year in range(1990, 2021):
-    dataset = pd.read_csv("https://raw.githubusercontent.com/davy-datascience/tennis-prediction/master/datasets"
-                          "/atp_matches/atp_matches_{}.csv".format(year))
+    dataset = pd.read_csv("https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master/atp_matches_{}.csv".format(year))
     list_datasets.append(dataset)
 
 dataset = pd.concat(list_datasets)
 dataset.reset_index(drop=True, inplace=True)
 
-dataset.drop(columns=["tourney_id", "surface", "draw_size", "tourney_level", "match_num",
+
+'''dataset.drop(columns=["tourney_id", "surface", "draw_size", "tourney_level", "match_num",
                       "winner_seed", "winner_entry", "winner_hand", "winner_ht",
                       "winner_ioc", "winner_age", "winner_rank", "winner_rank_points",
                       "loser_seed", "loser_entry", "loser_hand", "loser_ht", "loser_ioc",
-                      "loser_age", "loser_rank", "loser_rank_points"], inplace=True)
+                      "loser_age", "loser_rank", "loser_rank_points"], inplace=True)'''
+
+'''for col in dataset.columns:
+    print(col)
+    print(dataset[col].isna().sum())
+    print("___________")'''
+
+
+dataset.drop(columns=["winner_seed", "winner_entry", "loser_seed", "loser_entry"], inplace=True)
 
 # drop rows with null value
-dataset.dropna(inplace=True)
+
+#dataset.dropna(inplace=True)
+dataset.dropna(inplace=True, subset=["score", "w_ace", "winner_rank_points", "loser_rank_points"])
+
+#column left with null values
+columns_with_null = dataset.columns[dataset.isna().any()].tolist()
+columns_numerical = [col for col in columns_with_null if dataset[col].dtype == "float"]
+columns_object = [col for col in columns_with_null if dataset[col].dtype == "object"]
+
+for col in columns_numerical:
+    dataset[col].fillna(dataset[col].median(), inplace=True)
+
+for col in columns_object:
+    dataset[col].fillna(dataset[col].value_counts().idxmax(), inplace=True)
+
 
 # drop Davis Cup
 indexes_davis_cup = dataset[dataset["tourney_name"].str.startswith("Davis Cup")].index
@@ -42,34 +64,19 @@ dataset.drop(indexes_davis_cup, inplace=True)
 dataset = extract_scores(dataset)
 
 # Find player ids in csv file and atptour, then affect to dataset : p1_id and p2_id
-dataset, new_players_to_scrap_ids, player_ids_to_keep_csv = find_player_ids(dataset)
+players = find_player_ids(dataset)
+players = clean_players(players)
 
-players_from_csv = get_players_from_csv(player_ids_to_keep_csv)
-players_scrapped = scrap_players(new_players_to_scrap_ids)
-players = players_from_csv + players_scrapped
+dataset = add_players_info(dataset, players)
 
-players = scrap_flashscore_players(players)
-
-# record players in database
-if not (record_players(players)):
-    print("Error while saving scrapped players in database")
-
-
-dataset = add_flashscore_players_info(dataset, players)
-
-
-# Find tournament ids in atptour, then affect to dataset : tournament_id
-dataset, new_tournaments_to_scrap = find_tournament_info(dataset)
-
-tournaments = scrap_tournaments(new_tournaments_to_scrap)
-tournaments = scrap_last_tournaments(tournaments)
-# get tournaments ids from flashscore
+tournaments = find_atp_tournaments(dataset)
+tournaments = scrap_atp_tournaments(tournaments)
 tournaments = scrap_flash_score_tournaments(tournaments)
+tournaments = clean_tournaments(tournaments)
 
-if not (record_tournaments(tournaments)):
-    print("Error while saving scrapped tournaments in database")
+dataset = add_tournament_info(dataset, tournaments)
 
-dataset = add_flashscore_tournament_ids(dataset, tournaments)
+tournaments.drop(columns=["atp_formatted_name", "atp_id", "year"], inplace=True)
 
 dataset["p1_wins"] = True
 
@@ -78,15 +85,16 @@ dataset.drop(columns=["tourney_name", "winner_id", "winner_name", "loser_id", "l
 
 dataset = rename_column_names(dataset)
 
+# Add base feature missing
+dataset["p1_2nd_pts"] = substract_with_numba(dataset["p1_svpt"].to_numpy(), dataset["p1_1stIn"].to_numpy())
+dataset["p2_2nd_pts"] = substract_with_numba(dataset["p2_svpt"].to_numpy(), dataset["p2_1stIn"].to_numpy())
 
 dataset.drop(dataset[(dataset["p1_SvGms"] == 0) | (dataset["p2_SvGms"] == 0) | (dataset["p1_1stIn"] == 0) |
                      (dataset["p2_1stIn"] == 0) | (dataset["p1_2nd_pts"] == 0) | (dataset["p2_2nd_pts"] == 0)]
              .index, inplace=True)
 
-# Add base feature missing
-dataset["p1_2nd_pts"] = substract_with_numba(dataset["p1_svpt"].to_numpy(), dataset["p1_1stIn"].to_numpy())
-dataset["p2_2nd_pts"] = substract_with_numba(dataset["p2_svpt"].to_numpy(), dataset["p2_1stIn"].to_numpy())
 
+# Add other features
 dataset["p1_svpt_won"] = add_with_numba(dataset["p1_1stWon"].to_numpy(), dataset["p1_2ndWon"].to_numpy())
 dataset["p2_svpt_won"] = add_with_numba(dataset["p2_1stWon"].to_numpy(), dataset["p2_2ndWon"].to_numpy())
 

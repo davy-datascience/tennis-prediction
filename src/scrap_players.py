@@ -43,119 +43,167 @@ def search_player(first_name, last_name, players):
                        (players["last_name"].str.contains(last_name.lower()))]
 
 
-def match_player(p_id, full_name, players, player_ids, new_players_to_scrap_ids, player_ids_to_keep_csv):
-    if p_id not in player_ids:
-        my_man = None
-        matched = re.search("(.*) (.+)$", full_name)
+def search_player_in_csv(full_name, players_csv):
+    player = None
+    matched = re.search("(.*) (.+)$", full_name)
 
-        if matched:
-            my_man = search_player(matched.group(1), matched.group(2), players)
-        else:
-            print("NO MATCH: {}".format(full_name))
-
-        atp_id = None
-
-        if len(my_man) == 0:
-            matched = re.search("(.*) (.+ .+)$", full_name)
-            if matched:
-                my_man = search_player(matched.group(1), matched.group(2), players)
-
-        if len(my_man) == 0:
-            matched = re.search("(.*) (.+ .+ .+)$", full_name)
-            if matched:
-                my_man = search_player(matched.group(1), matched.group(2), players)
-
-        if len(my_man) == 0:
-            atptour_name, atptour_id = scrap_player_id(full_name)
-            if atptour_name is not None and atptour_id is not None:
-                new_players_to_scrap_ids.append(atptour_id)
-                atp_id = atptour_id
-            else:
-                atp_id = "NO MATCH " + full_name
-
-        elif len(my_man) > 1:
-            atp_id = "MULTIPLE MATCH " + full_name
-        else:
-            matched_player_id = my_man.iloc[0]["player_id"]
-            player_ids_to_keep_csv.append(matched_player_id)
-            atp_id = matched_player_id
-
-        player_ids[p_id] = atp_id
-
-        return atp_id
-
+    if matched:
+        player = search_player(matched.group(1), matched.group(2), players_csv)
     else:
-        return player_ids[p_id]
+        print("NO MATCH: {}".format(full_name))
+
+    atp_id = None
+
+    if len(player) == 0:
+        matched = re.search("(.*) (.+ .+)$", full_name)
+        if matched:
+            player = search_player(matched.group(1), matched.group(2), players_csv)
+
+    if len(player) == 0:
+        matched = re.search("(.*) (.+ .+ .+)$", full_name)
+        if matched:
+            player = search_player(matched.group(1), matched.group(2), players_csv)
+
+    if len(player) == 0:
+        # Player not found in csv, scraping on atptour
+        atptour_name, atptour_id = scrap_player_id(full_name)
+        if atptour_name is not None and atptour_id is not None:
+            atp_id = atptour_id
+
+    elif len(player) == 1:
+        atp_id = player.iloc[0]["player_id"]
+
+    return atp_id
 
 
-def get_player_ids(players_in_matches_dataset):
+def get_player_ids(players):
     start_time = time.time()
 
-    players = pd.read_csv("datasets/atp_players.csv")
-    players["first_name"] = [row.lower().replace("-", " ").replace("'", "") for row in players["first_name"]]
-    players["last_name"] = [row.lower().replace("-", " ").replace("'", "") for row in players["last_name"]]
+    players_csv = pd.read_csv("datasets/atp_players.csv")
+    players_csv["first_name"] = [row.lower().replace("-", " ").replace("'", "") for row in players_csv["first_name"]]
+    players_csv["last_name"] = [row.lower().replace("-", " ").replace("'", "") for row in players_csv["last_name"]]
 
-    player_ids = {}
+    players["atp_id"] = players.apply(lambda row: search_player_in_csv(row["player_name"], players_csv), axis=1)
+
+    # players_not_found = players[players["atp_id"].isna()]
+    players_manual_collect = pd.read_csv("datasets/player_ids_atptour_manual_collect.csv")
+
+    players["atp_id"] = players.apply(lambda row: row["atp_id"] if row["atp_id"] is not None
+    else players_manual_collect[players_manual_collect["id"] == row["player_id"]].iloc[0]["new_id"], axis=1)
+
+    '''player_ids = {}
     new_players_to_scrap_ids = []
     player_ids_to_keep_csv = []
 
     winner_atp_ids = [
-        match_player(row[0], row[1], players, player_ids, new_players_to_scrap_ids, player_ids_to_keep_csv) for row in
-        players_in_matches_dataset.to_numpy()]
-    loser_atp_ids = [match_player(row[2], row[3], players, player_ids, new_players_to_scrap_ids, player_ids_to_keep_csv)
+        match_player(row[0], row[1], players_csv, player_ids, new_players_to_scrap_ids, player_ids_to_keep_csv) for row in
+        players.to_numpy()]
+    loser_atp_ids = [match_player(row[2], row[3], players_csv, player_ids, new_players_to_scrap_ids, player_ids_to_keep_csv)
                      for row in
-                     players_in_matches_dataset.to_numpy()]
+                     players.to_numpy()]
 
     print("---getPlayerIds  %s seconds ---" % (time.time() - start_time))
-    return winner_atp_ids, loser_atp_ids, new_players_to_scrap_ids, player_ids_to_keep_csv
+    return winner_atp_ids, loser_atp_ids, new_players_to_scrap_ids, player_ids_to_keep_csv'''
+
+    return players
 
 
-def retrieve_missing_id(player_id, atptour_id, player_ids_manual_collect):
-    if atptour_id.startswith("NO MATCH") or atptour_id.startswith("MULTIPLE MATCH"):
-        new_id = player_ids_manual_collect.loc[player_id][0]
-        return new_id
-    else:
-        return atptour_id
+def add_flash_info(player):
+    player_name = player["player_name"]
+    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    match_url = 'https://s.livesport.services/search/?q={}&l=1&s=2&f=1%3B1&pid=2&sid=1'.format(player_name)
+    driver.get(match_url)
+    time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
+    flashscore_id = flashscore_url = None
+    try:
+        element = driver.find_element_by_xpath("//pre").text
+        element_regex = re.search(r'{"results":(\[.+\])}', element)
+        element_json = element_regex.group(1)
+        players_found = json.loads(element_json)
+
+        if len(players_found) == 1:
+            flashscore_id = players_found[0]["id"]
+            flashscore_url = players_found[0]["url"]
+        elif len(players_found) > 1:
+            for player_found in players_found:
+                if player_found["url"] == str.lower(player_name).replace(" ", "-"):
+                    flashscore_id = player_found["id"]
+                    flashscore_url = player_found["url"]
+                    break
+
+    except (NoSuchElementException, AttributeError):
+        pass
+
+    driver.quit()
+    # player["flashscore_id"] = flashscore_id
+    # player["flashscore_url"] = flashscore_url
+    return [flashscore_id, flashscore_url]
 
 
-def retrieve_missing_ids(dataset):
-    # I manually searched corresponding player on atptour.com and saved their corresponding ids in a csv file 
-    # csv file is being imported
-    player_ids_manual_collect = pd.read_csv("datasets/player_ids_matching_manual_collect.csv", index_col="id")
+def add_info(player):
+    first_name = None
+    first_initial = None
+    last_name = None
+    full_name = None
+    birth_date = None
+    turned_pro = None
+    weight = None
+    height = None
+    flag_code = None
+    birth_city = None
+    birth_country = None
+    residence_city = None
+    residence_country = None
+    handedness = None
+    backhand = None
 
-    p1_ids_dataframe = dataset.apply(
-        lambda row: retrieve_missing_id(row["winner_id"], row["p1_id"], player_ids_manual_collect), axis=1)
-    p2_ids_dataframe = dataset.apply(
-        lambda row: retrieve_missing_id(row["loser_id"], row["p2_id"], player_ids_manual_collect), axis=1)
+    first_name, first_initial, last_name, full_name, birth_date, turned_pro, weight, height, flag_code, \
+        birth_city, birth_country, residence_city, residence_country, handedness, backhand = \
+            scrap_player(player["atp_id"])
 
-    return p1_ids_dataframe, p2_ids_dataframe, player_ids_manual_collect
+    return pd.Series((first_name, first_initial, last_name, full_name, birth_date, turned_pro, weight, height,
+                      flag_code, birth_city, birth_country, residence_city, residence_country, handedness, backhand))
 
 
 def find_player_ids(dataset):
-    # Find players corresponding ids (csv file + scrapping)
-    dataset["p1_id"], dataset["p2_id"], new_players_to_scrap_ids, player_ids_to_keep_csv = \
-        get_player_ids(dataset[["winner_id", "winner_name", "loser_id", "loser_name"]])
+    # Find distinct players from dataset
+    players = pd.concat([dataset[["winner_id", "winner_name"]].rename(columns={"winner_id": "player_id",
+                                                                               "winner_name": "player_name"}),
+                         dataset[["loser_id", "loser_name"]].rename(columns={"loser_id": "player_id",
+                                                                             "loser_name": "player_name"})])
+    players = players.drop_duplicates()
 
-    # Retrieve ids of players that couldn't be found
-    '''p1_ids_notFound = dataset[(dataset["p1_id"].str.startswith('NO MATCH'))
-                              | (dataset["p1_id"].str.startswith('MULTIPLE MATCH'))]
-    p2_ids_notFound = dataset[(dataset["p2_id"].str.startswith('NO MATCH'))
-                              | (dataset["p2_id"].str.startswith('MULTIPLE MATCH'))]
+    players = get_player_ids(players)
 
-     p_ids_notFound = pd.Series([*p1_ids_notFound["winner_id"], *p2_ids_notFound["loser_id"]]).unique()'''
+    players["id-url"] = players.apply(add_flash_info, axis=1)
+    players["flash_id"] = players.apply(lambda row: row["id-url"][0], axis=1)
+    players["flash_url"] = players.apply(lambda row: row["id-url"][1], axis=1)
+    players.drop(columns=["id-url"], inplace=True)
+    # not_found = players[players["flash_id"].isna()]
 
-    dataset["p1_id"], dataset["p2_id"], manual_collect_player_ids = retrieve_missing_ids(dataset)
+    players_manual_collect = pd.read_csv("datasets/players_flashscor_manual_collect.csv")
 
-    new_players_to_scrap_ids += manual_collect_player_ids.T.iloc[0].to_list()
+    players["flash_id"] = players.apply(lambda row: row["flash_id"] if row["flash_id"] is not None
+    else players_manual_collect[players_manual_collect["atp_id"] == row["atp_id"]].iloc[0]["flash_id"], axis=1)
 
-    return dataset, new_players_to_scrap_ids, player_ids_to_keep_csv
+    players["flash_url"] = players.apply(lambda row: row["flash_url"] if row["flash_url"] is not None
+    else players_manual_collect[players_manual_collect["atp_id"] == row["atp_id"]].iloc[0]["flash_url"], axis=1)
+
+    start_time = time.time()
+    players[["first_name", "first_initial", "last_name", "full_name", "birth_date", "turned_pro", "weight", "height",
+             "flag_code", "birth_city", "birth_country", "residence_city", "residence_country", "handedness", "backhand"
+             ]] = players.apply(lambda player: add_info(player), axis=1)
+
+    print("--- %s seconds ---" % (time.time() - start_time))
+
+    return players
 
 
 def scrap_player(player_id):
     driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
     match_url = 'https://www.atptour.com/en/players/player/{}/overview'.format(player_id)
     driver.get(match_url)
-    time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
+    time.sleep(0.5)  # Wait 1 sec to avoid IP being banned for scrapping
 
     player = None
     try:
@@ -242,235 +290,255 @@ def scrap_player(player_id):
 
     driver.quit()
 
-    return player
+    if player is not None:
+        # TODO put variables in player class
+        first_initial = player.first_name[0] if player.first_name is not None and player.first_name != "" else None
+        full_name = "{0} {1}".format(player.last_name, first_initial)
 
-
-def scrap_players(players_ids):
-    players = []
-
-    for player_id in players_ids:
-        player = scrap_player(player_id)
-        if player is not None:
-            players.append(player)
-
-    return players
-
-# TODO DELETE cause in player.py
-def format_player(player):
-    residence = player["residence"]
-    birth_place = player["birthplace"]
-    birth_year = player["birth_year"]
-    birth_month = player["birth_month"]
-    birth_day = player["birth_day"]
-
-    residence_city = residence_country = None
-    try:
-        residence_splitted = residence.split(", ")
-        if len(residence_splitted) > 1:
-            residence_city = residence_splitted[0]
-            residence_country = residence_splitted[-1]
-    except AttributeError:
-        pass
-
-    birth_city = birth_country = None
-    try:
-        birth_place_splitted = birth_place.split(", ")
-        if len(birth_place_splitted) > 1:
-            birth_city = birth_place_splitted[0]
-            birth_country = birth_place_splitted[-1]
-    except AttributeError:
-        pass
-
-    birth_date = None
-    try:
-        birth_date = datetime(int(birth_year), int(birth_month), int(birth_day), tzinfo=UTC)
-    except ValueError:
-        pass
-
-    player["residence_city"] = residence_city
-    player["residence_country"] = residence_country
-    player["birth_city"] = birth_city
-    player["birth_country"] = birth_country
-    player["birth_date"] = birth_date
-    return player
-
-
-def record_players(players):
-    # Record scrapped players
-    players_json = get_players_json(players)
-    myclient = pymongo.MongoClient(MONGO_CLIENT)
-    mydb = myclient["tennis"]
-    mycol = mydb["players"]
-    result = mycol.insert_many(players_json)
-    return result.acknowledged
-
-
-def scrap_flashscore_player_info(player_name):
-    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
-    match_url = 'https://s.livesport.services/search/?q={}&l=1&s=2&f=1%3B1&pid=2&sid=1'.format(player_name)
-    driver.get(match_url)
-    time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
-    id_flashscore = url_flashscore = -1
-    try:
-        element = driver.find_element_by_xpath("//pre").text
-        element_regex = re.search(r'{"results":(\[.+\])}', element)
-        element_json = element_regex.group(1)
-        players_found = json.loads(element_json)
-
-        if len(players_found) == 1:
-            id_flashscore = players_found[0]["id"]
-            url_flashscore = players_found[0]["url"]
-        elif len(players_found) > 1:
-            for player in players_found:
-                if player["url"] == str.lower(player_name).replace(" ", "-"):
-                    id_flashscore = player["id"]
-                    url_flashscore = player["url"]
-                    break
-
-    except (NoSuchElementException, AttributeError):
-        pass
-
-    driver.quit()
-
-    return [id_flashscore, url_flashscore]
-
-
-#TODO DELETE
-'''def get_flashscore_info_manual_collect(player_id, flashscore_id, flashscore_url, players_manual_collect):
-
-    if flashscore_id != -1:
-        return [flashscore_id, flashscore_url]
+        return player.first_name, first_initial, player.last_name, full_name, player.birth_date, \
+               player.turned_pro, player.weight, player.height, player.flag_code, player.birth_city, \
+               player.birth_country, player.residence_city, player.residence_country, player.handedness, player.back_hand
     else:
-        try:
-            print(len(players_manual_collect))
-            print("player_id: {0} ; flashscore_id: {1} ; flashscore_url: {2}".format(player_id, flashscore_id, flashscore_url))
-            player_found = players_manual_collect.loc[players_manual_collect["player_id"] == player_id]
-            print("len: {}".format(len(player_found.index)))
-            return [player_found.iloc[0]["flashscore_id"], player_found.iloc[0]["flashscore_url"]]
-        except IndexError:
-            print("player not found id: '{}'".format(player_id))
-            return [-1, -1]
+        return None, None, None, None, None, None, None, None, None, None, None, None, None, None, None
 
 
-#TODO DELETE
-def add_flashscore_info(mongo_id, flashscore_id, flashscore_url):
-    myclient = pymongo.MongoClient(MONGO_CLIENT)
-    mydb = myclient["tennis"]
-    mycol = mydb["players"]
-
-    myquery = {"_id": mongo_id}
-    newvalues = {"$set": {"flashscore_id": flashscore_id, "flashscore_url": flashscore_url}}
-    mycol.update_many(myquery, newvalues)
-
-
-# TODO DELETE
-def scrap_flashscore_players():
-    myclient = pymongo.MongoClient(MONGO_CLIENT)
-    mydb = myclient["tennis"]
-    mycol = mydb["players"]
-    players_cursor = mycol.find({})
-    players = pd.DataFrame(list(players_cursor))
-
-    id_url_pairs = players.apply(
-        lambda row: scrap_flashscore_player_info(row["last_name"] + " " + row["first_name"]), axis=1)
-
-    flashscore_id = []
-    flashscore_url = []
-    for id_url in id_url_pairs:
-        flashscore_id.append(id_url[0])
-        flashscore_url.append(id_url[1])
-
-    players["flashscore_id"] = pd.Series(flashscore_id)
-    players["flashscore_url"] = pd.Series(flashscore_url)
-
-    # Uncomment next lines to retrieve players not found on flashscore
-    not_found = players[players["flashscore_id"] == -1]
-    not_found.to_csv("players_not_found_flashscore", index=False)
-
-    # I manually collected the flashscore coresponding id and url
-    players_manual_collect = pd.read_csv("datasets/players_flashscore_manual_collect.csv")
-
-    id_url_pairs_collect = players.apply(
-        lambda row: get_flashscore_info_manual_collect(row["player_id"], row["flashscore_id"],
-                                                       row["flashscore_url"], players_manual_collect), axis=1)
-
-    flashscore_id_collect = []
-    flashscore_url_collect = []
-    for id_url in id_url_pairs_collect:
-        flashscore_id_collect.append(id_url[0])
-        flashscore_url_collect.append(id_url[1])
-
-    players["flashscore_id"] = pd.Series(flashscore_id_collect)
-    players["flashscore_url"] = pd.Series(flashscore_url_collect)
-
-    # Remove all rows
-    removed = mycol.remove({})
-    list_players = list(players.apply(lambda row: get_player_from_series(row), axis=1))
-
-    players_json = get_players_json(list_players)
-
-    # Insert new rows updated
-    mycol.insert_many(players_json)'''
+def set_missing_birth_country(birth_country, flag_code, countries):
+    if birth_country is not None:
+        return birth_country
+    else:
+        country = countries[countries["NOC"] == flag_code]
+        if len(country.index) == 1:
+            return country.iloc[0]["Country"]
+        else:
+            print("flag code {0} not found".format(flag_code))
+            return None
 
 
-def get_players_from_csv(player_to_keep_ids):
-    players_from_csv = pd.read_csv("datasets/atp_players.csv")
-    indexes_to_keep = players_from_csv[players_from_csv["player_id"].isin(player_to_keep_ids)].index
-    players_from_csv = players_from_csv[players_from_csv.index.isin(indexes_to_keep)]
-    players = get_players_from_csv_dataframe(players_from_csv)
+def correct_player_country(players, field):
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "AL" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Argentina" if row[field] == "ARG" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Argentina" if row[field] == "Argentin" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Australia" if row[field] == "AUS" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Australia" if row[field] == "Aust.." else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Spain" if row[field] == "Barcelona" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Belgium" if row[field] == "Belgium/Assisi,Italy" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Brazil" if row[field] == "BRA" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Brazil" if row[field] == "Brasil" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Bosnia-Herzegovina" if row[field] == "Bosnia" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Bosnia-Herzegovina" if row[field] == "Bosnia & Herzegovina" else row[field],
+        axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "CA" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "CT" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "California" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Taipei" if row[field] == "Chinese Taipei" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "Connecticut" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Ivory Coast" if row[field] == "Cote d'Ivoire" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Czech Republic" if row[field] == "CZE" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Czech Republic" if row[field] == "Cz Republic" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Czech Republic" if row[field] == "Czech Republic" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Czech Republic" if row[field] == "Czech Rep." else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Czech Republic" if row[field] == "Czech." else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Czech Republic" if row[field] == "Czechia" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Czech Republic" if row[field] == "Czechoslovakia" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "D.C." else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "FL" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "FL USA" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "GA" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "GA 30022" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Germany" if row[field] == "GER" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Bahamas" if row[field] == "Grand Bahamas" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "HI" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "Hawaii" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Hong Kong" if row[field] == "Hong Kong*" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Netherlands" if row[field] == "Holland" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "IA" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "IL" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "Illinois" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "IN" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "KS" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "South Korea" if row[field] == "Korea" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "South Korea" if row[field] == "Korea, South" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "South Korea" if row[field] == "Korea Republic of" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "MA" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "MI" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "MN" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "MO" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "NC" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "NJ" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "NY" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "NV" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "New York" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Great Britain" if row[field] == "Norfolk" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Macedonia" if row[field] == "North Macedonia" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Russia" if row[field] == "North-Ossetia" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "OH" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "OR" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "PA" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "PA U.S.A." else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Australia" if row[field] == "Plains,Tasmania,Aust." else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "South Africa" if row[field] == "RSA" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Romania" if row[field] == "Rumania" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Russia" if row[field] == "Russian Federation" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Australia" if row[field] == "S.A. Australia" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Canada" if row[field] == "Saskatchewan,Canada" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Slovakia" if row[field] == "Slovak" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Slovakia" if row[field] == "Slovak Republic" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Serbia" if row[field] == "SERBIA" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Spain" if row[field] == "Spai" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "SC" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "TN" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "TX" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "TX USA" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "Texas" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Australia" if row[field] == "Tasmania,Australia" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "Tennessee" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Netherlands" if row[field] == "The Netherlands" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.A.E." if row[field] == "UAE" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "USA." else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "USA/Stockholm" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "USA; Grand Bahama" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "U.S.A" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "US" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "USA" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "United States" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Great Britain" if row[field] == "United Kingdom" else row[field], axis=1)
+    players[field] = players.apply(lambda row: "Great Britain" 
+        if row[field] == "United Kingdom of Great Britain and Northern Ireland" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "United States of America" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "VA" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "U.S.A." if row[field] == "WI" else row[field], axis=1)
+    players[field] = players.apply(
+        lambda row: "Australia" if row[field] == "Victoria" else row[field], axis=1)
+
     return players
 
 
-def scrap_flashscore_players(players):
+def clean_players(players):
+    countries_iso_codes = pd.read_csv(
+        "https://raw.githubusercontent.com/johnashu/datacamp/master/medals/Summer%20Olympic%20medalists%201896%20to%202008%20-%20IOC%20COUNTRY%20CODES.csv")
 
-    id_url_pairs = []
+    players["birth_country"] = players.apply(
+        lambda row: set_missing_birth_country(row["birth_country"], row["flag_code"], countries_iso_codes), axis=1)
 
-    for player in players:
-        id_url_pairs.append(scrap_flashscore_player_info(player.last_name + " " + player.first_name))
+    players["birth_country"] = players.apply(lambda row: "Romania" if pd.isna(row["birth_country"]) and row["flag_code"] == "ROU" else row["birth_country"], axis=1)
+    players["birth_country"] = players.apply(lambda row: "Serbia" if pd.isna(row["birth_country"]) and row["flag_code"] == "SRB" else row["birth_country"], axis=1)
 
-    for i in range(len(id_url_pairs)):
-        setattr(players[i], "flashscore_id", id_url_pairs[i][0])
-        setattr(players[i], "flashscore_url", id_url_pairs[i][1])
+    players = correct_player_country(players, "birth_country")
+    players = correct_player_country(players, "residence_country")
 
-    not_found = []
-    for player in players:
-        if player.flashscore_id == -1:
-            not_found.append(player)
-
-    # I manually collected the flashscore coresponding id and url
-    players_manual_collect = pd.read_csv("datasets/players_flashscore_manual_collect.csv")
-
-    for player in players:
-        if player.flashscore_id == -1:
-            player_found = players_manual_collect.loc[players_manual_collect["player_id"] == player.atptour_id]
-            if len(player_found.index) == 1:
-                setattr(player, "flashscore_id", player_found.iloc[0]["flashscore_id"])
-                setattr(player, "flashscore_url", player_found.iloc[0]["flashscore_url"])
-            else:
-                print("Player not found on flashscore after manual collect: " + player.atptour_id)
+    players["backhand"] = players.apply(lambda row: None if row["backhand"] == "Unknown Backhand" else row["backhand"], axis=1)
 
     return players
 
 
-def add_flashscore_player_id(player_atptour_id, players):
-    for player in players:
-        if player.atptour_id == player_atptour_id:
-            return player.flashscore_id
-    print("player not found: " + player_atptour_id)
-    return -1
+def add_player_attribute(attribute, player_id, players):
+    play = players[players["player_id"] == player_id]
+    if len(play.index) == 1:
+        return play.iloc[0][attribute]
+    else:
+        return None
 
 
-def add_flashscore_player_url(player_atptour_id, players):
-    for player in players:
-        if player.atptour_id == player_atptour_id:
-            return player.flashscore_url
-    print("player not found: " + player_atptour_id)
-    return -1
 
+def add_players_info(dataset, players):
+    dataset["p1_id"] = dataset.apply(lambda row: add_player_attribute("flash_id", row["winner_id"], players), axis=1)
+    dataset["p2_id"] = dataset.apply(lambda row: add_player_attribute("flash_id", row["loser_id"], players), axis=1)
+    dataset["p1_weight"] = dataset.apply(lambda row: add_player_attribute("weight", row["winner_id"], players), axis=1)
+    dataset["p2_weight"] = dataset.apply(lambda row: add_player_attribute("weight", row["loser_id"], players), axis=1)
+    dataset["p1_birth_country"] = dataset.apply(lambda row: add_player_attribute("birth_country", row["winner_id"], players), axis=1)
+    dataset["p2_birth_country"] = dataset.apply(lambda row: add_player_attribute("birth_country", row["loser_id"], players), axis=1)
+    dataset["p1_residence_country"] = dataset.apply(lambda row: add_player_attribute("residence_country", row["winner_id"], players), axis=1)
+    dataset["p2_residence_country"] = dataset.apply(lambda row: add_player_attribute("residence_country", row["loser_id"], players), axis=1)
+    dataset["p1_backhand"] = dataset.apply(lambda row: add_player_attribute("backhand", row["winner_id"], players), axis=1)
+    dataset["p2_backhand"] = dataset.apply(lambda row: add_player_attribute("backhand", row["loser_id"], players), axis=1)
 
-def add_flashscore_players_info(dataset, players):
-    dataset["p1_flashscore_id"] = dataset.apply(lambda row: add_flashscore_player_id(row["p1_id"], players), axis=1)
-    dataset["p1_flashscore_url"] = dataset.apply(lambda row: add_flashscore_player_url(row["p1_id"], players), axis=1)
-    dataset["p2_flashscore_id"] = dataset.apply(lambda row: add_flashscore_player_id(row["p2_id"], players), axis=1)
-    dataset["p2_flashscore_url"] = dataset.apply(lambda row: add_flashscore_player_url(row["p2_id"], players), axis=1)
     return dataset
