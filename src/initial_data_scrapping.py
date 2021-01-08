@@ -81,7 +81,7 @@ tournaments.drop(columns=["atp_formatted_name", "atp_id", "year"], inplace=True)
 dataset["p1_wins"] = True
 
 # Remove columns useless
-dataset.drop(columns=["tourney_name", "winner_id", "winner_name", "loser_id", "loser_name", "score"], inplace=True)
+dataset.drop(columns=["tourney_id", "tourney_name", "tourney_date", "match_num", "winner_id", "winner_name", "winner_ioc", "loser_id", "loser_name", "loser_ioc", "score", "p1_displayname", "p2_displayname", "p1_lastname", "p2_lastname"], inplace=True)
 
 dataset = rename_column_names(dataset)
 
@@ -125,6 +125,7 @@ dataset["p2_bpSaved_ratio"] = [get_bp_saved_ratio(row[0], row[1]) for row in dat
 
 
 
+
 list_matches = list(dataset.apply(lambda row: get_match_from_series(row), axis=1))
 
 # Record Matches
@@ -154,7 +155,7 @@ dataset["p2_df_ratio"] = divide_with_numba(dataset["p2_df"].to_numpy(), dataset[
 dataset["p1_bpFaced_ratio"] = divide_with_numba(dataset["p1_bpFaced"].to_numpy(), dataset["p1_SvGms"].to_numpy())
 dataset["p2_bpFaced_ratio"] = divide_with_numba(dataset["p2_bpFaced"].to_numpy(), dataset["p2_SvGms"].to_numpy())
 
-dataset['tourney_date'] = pd.to_datetime(dataset['tourney_date'], format="%Y%m%d")
+#dataset['tournament_date'] = pd.to_datetime(dataset['tourney_date'], format="%Y%m%d")
 
 
 player_ids = np.unique(np.concatenate([dataset["p1_id"].unique(), dataset["p2_id"].unique()]))
@@ -179,7 +180,7 @@ print("--- %s seconds ---" % (time.time() - start_time))
 
 start_time = time.time()
 results = [get_previous_results(player_results, index, ids[0], ids[1])
-           for index, ids in dataset[["p1_id", "p2_id"]].iterrows()]
+           for index, ids in dataset[["p1_id", "p2_id", "datetime", "tour_date"]].iterrows()]
 print("--- %s seconds ---" % (time.time() - start_time))
 
 

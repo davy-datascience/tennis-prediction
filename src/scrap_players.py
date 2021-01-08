@@ -540,5 +540,9 @@ def add_players_info(dataset, players):
     dataset["p2_residence_country"] = dataset.apply(lambda row: add_player_attribute("residence_country", row["loser_id"], players), axis=1)
     dataset["p1_backhand"] = dataset.apply(lambda row: add_player_attribute("backhand", row["winner_id"], players), axis=1)
     dataset["p2_backhand"] = dataset.apply(lambda row: add_player_attribute("backhand", row["loser_id"], players), axis=1)
+    dataset["p1_displayname"] = dataset.apply(lambda row: add_player_attribute("full_name", row["winner_id"], players), axis=1)
+    dataset["p2_displayname"] = dataset.apply(lambda row: add_player_attribute("full_name", row["loser_id"], players), axis=1)
+    dataset["p1_lastname"] = dataset.apply(lambda row: add_player_attribute("last_name", row["winner_id"], players),axis=1)
+    dataset["p2_lastname"] = dataset.apply(lambda row: add_player_attribute("last_name", row["loser_id"], players),axis=1)
 
     return dataset

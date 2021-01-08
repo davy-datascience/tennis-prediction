@@ -236,6 +236,12 @@ def clean_tournaments(tournaments):
     tournaments["country"] = tournaments.apply(
         lambda tour: "U.S.A." if tour["flash_id"] == "memphis" else tour["country"], axis=1)
 
+    '''tour = tournaments[tournaments["flash_id"] == "shanghai"].iloc[-1]
+    tour["flash_id"] = "shanghai-2"
+    tournaments = pd.concat([tournaments, pd.DataFrame(tour).T])
+
+    tournaments.drop_duplicates(subset=["flash_id"], keep="last", inplace=True)'''
+
     return tournaments
 
 

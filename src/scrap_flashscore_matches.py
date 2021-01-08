@@ -177,14 +177,7 @@ def scrap_match_flashscore(match_id):
         p2_bp_saved = int(driver.find_element_by_xpath(root + "div[2]/div[1]/div[3]").text)
         p2_bp_faced = int(driver.find_element_by_xpath(root + "div[2]/div[1]/div[3]").text)
 
-        match = Match(p1_id, p2_id, tournament_id, m_round, duration, p1_ace, p2_ace, p1_df, p2_df, p1_svpt, p2_svpt,
-                      p1_1st_in, p2_1st_in, p1_1st_won, p2_1st_won, p1_2nd_pts, p2_2nd_pts, p1_2nd_won, p2_2nd_won,
-                      p1_sv_gms, p2_sv_gms, p1_bp_saved, p2_bp_saved, p1_bp_faced, p2_bp_faced, p1_s1_gms, p2_s1_gms,
-                      p1_tb1_score, p2_tb1_score, p1_s2_gms, p2_s2_gms, p1_tb2_score, p2_tb2_score, p1_s3_gms,
-                      p2_s3_gms,
-                      p1_tb3_score, p2_tb3_score, p1_s4_gms, p2_s4_gms, p1_tb4_score, p2_tb4_score, p1_s5_gms,
-                      p2_s5_gms,
-                      p1_tb5_score, p2_tb5_score)
+
 
     except Exception as ex:
         print("Error while scraping match id '{}'".format(match_id))
