@@ -123,6 +123,7 @@ dataset["p2_bpSaved_ratio"] = [get_bp_saved_ratio(row[0], row[1]) for row in dat
 
 
 
+dataset2 = dataset[['match_id', 'status', 'tournament_id', 'p1_id', 'p2_id', 'surface', 'datetime', 'tour_date', 'draw_size', 'tourney_level', 'best_of', 'round', 'minutes', 'year', 'country', 'ret', 'p1_hand', 'p1_backhand', 'p1_ht', 'p1_weight', 'p1_age', 'p1_ace', 'p1_df', 'p1_svpt', 'p1_1stIn', 'p1_1stWon', 'p1_2ndWon', 'p1_SvGms', 'p1_bpSaved', 'p1_bpFaced', 'p1_rank', 'p1_rank_points', 'p1_birth_country', 'p1_residence_country', 'p2_hand', 'p2_backhand', 'p2_ht', 'p2_weight', 'p2_age', 'p2_ace', 'p2_df', 'p2_svpt', 'p2_1stIn', 'p2_1stWon', 'p2_2ndWon', 'p2_SvGms', 'p2_bpSaved', 'p2_bpFaced', 'p2_rank', 'p2_rank_points', 'p2_birth_country', 'p2_residence_country', 'p1_s1_gms', 'p2_s1_gms', 'p1_tb1_score', 'p2_tb1_score', 'p1_s2_gms', 'p2_s2_gms', 'p1_tb2_score', 'p2_tb2_score', 'p1_s3_gms', 'p2_s3_gms', 'p1_tb3_score', 'p2_tb3_score', 'p1_s4_gms', 'p2_s4_gms', 'p1_tb4_score', 'p2_tb4_score', 'p1_s5_gms', 'p2_s5_gms', 'p1_tb5_score', 'p2_tb5_score', 'p1_2nd_pts', 'p2_2nd_pts', 'p1_svpt_won', 'p2_svpt_won', 'p1_svpt_ratio', 'p2_svpt_ratio', 'p1_1stWon_ratio', 'p2_1stWon_ratio', 'p1_2ndWon_ratio', 'p2_2ndWon_ratio', 'p1_SvGmsWon', 'p2_SvGmsWon', 'p1_SvGmsWon_ratio', 'p2_SvGmsWon_ratio', 'p1_1st_serve_ratio', 'p2_1st_serve_ratio', 'p1_bpSaved_ratio', 'p2_bpSaved_ratio', 'p1_wins', 'prediction', 'prediction_version']]
 
 
 

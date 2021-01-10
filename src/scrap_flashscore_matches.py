@@ -6,6 +6,9 @@ from datetime import datetime
 from dateutil.tz import UTC
 from src.Classes.match import Match
 from src.log import log
+import pandas as pd
+
+from src.tournament_manager import scrap_tournament
 
 
 def find_by_class(class_name, driver):
@@ -36,7 +39,7 @@ def find_tb_score(player, set_nb, driver):
 
 def scrap_match_flashscore(match_id):
     try:
-        match_id = "h4UYhAmh"  # TODO DELETE LINE
+        match_id = "GIecNDAM"  # TODO DELETE LINE
         driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
         match_url = "https://www.flashscore.com/match/" + match_id
         driver.get(match_url)
@@ -45,14 +48,14 @@ def scrap_match_flashscore(match_id):
         p1_elem = driver.find_element_by_xpath("//div[@class='team-text tname-home']/div/div/a") \
             .get_attribute("onclick")
         p1_regex = re.search("/player/(.+)/(.+)\'", p1_elem)
-        p1_flash_formatted_name = p1_regex.group(1)
-        p1_flash_id = p1_regex.group(2)
+        p1_url = p1_regex.group(1)
+        p1_id = p1_regex.group(2)
 
         p2_elem = driver.find_element_by_xpath("//div[@class='team-text tname-away']/div/div/a") \
             .get_attribute("onclick")
         p2_regex = re.search("/player/(.+)/(.+)\'", p2_elem)
-        p2_flash_formatted_name = p2_regex.group(1)
-        p2_flash_id = p2_regex.group(2)
+        p2_url = p2_regex.group(1)
+        p2_id = p2_regex.group(2)
 
         match_date = None
         try:
@@ -74,6 +77,8 @@ def scrap_match_flashscore(match_id):
         duration_elem = driver.find_element_by_xpath("//tr[1]/td[@class='score'][1]").text
         duration_regex = re.search("([0-9]+):([0-9]+)", duration_elem)
         duration = int(duration_regex.group(1)) * 60 + int(duration_regex.group(2))
+
+        status_elem = driver.find_element_by_xpath("//div[@class='info-status mstat']").text
 
         p1_s1_gms = find_gms_value(1, 1, driver)
         p1_s2_gms = find_gms_value(1, 2, driver)
@@ -177,9 +182,56 @@ def scrap_match_flashscore(match_id):
         p2_bp_saved = int(driver.find_element_by_xpath(root + "div[2]/div[1]/div[3]").text)
         p2_bp_faced = int(driver.find_element_by_xpath(root + "div[2]/div[1]/div[3]").text)
 
-
+        # match = pd.DataFrame([[match_id, status, tournament_id, p1_id, p2_id, surface, match_date, tour_date, draw_size, tourney_level, best_of, round, duration, year, country, ret, p1_hand, p1_backhand, p1_ht, p1_weight, p1_age, p1_ace, p1_df, p1_svpt, p1_1stIn, p1_1stWon, p1_2ndWon, p1_SvGms, p1_bpSaved, p1_bpFaced, p1_rank, p1_rank_points, p1_birth_country, p1_residence_country, p2_hand, p2_backhand, p2_ht, p2_weight, p2_age, p2_ace, p2_df, p2_svpt, p2_1stIn, p2_1stWon, p2_2ndWon, p2_SvGms, p2_bpSaved, p2_bpFaced, p2_rank, p2_rank_points, p2_birth_country, p2_residence_country, p1_s1_gms, p2_s1_gms, p1_tb1_score, p2_tb1_score, p1_s2_gms, p2_s2_gms, p1_tb2_score, p2_tb2_score, p1_s3_gms, p2_s3_gms, p1_tb3_score, p2_tb3_score, p1_s4_gms, p2_s4_gms, p1_tb4_score, p2_tb4_score, p1_s5_gms, p2_s5_gms, p1_tb5_score, p2_tb5_score, p1_2nd_pts, p2_2nd_pts, p1_svpt_won, p2_svpt_won, p1_svpt_ratio, p2_svpt_ratio, p1_1stWon_ratio, p2_1stWon_ratio, p1_2ndWon_ratio, p2_2ndWon_ratio, p1_SvGmsWon, p2_SvGmsWon, p1_SvGmsWon_ratio, p2_SvGmsWon_ratio, p1_1st_serve_ratio, p2_1st_serve_ratio, p1_bpSaved_ratio, p2_bpSaved_ratio, p1_wins, prediction, prediction_version]])
 
     except Exception as ex:
         print("Error while scraping match id '{}'".format(match_id))
         print(type(ex))
         return None
+
+
+def scrap_matches(driver, tournaments):
+    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    match_url = "https://www.flashscore.com/tennis"
+    driver.get(match_url)
+    # TODO delete prev lines
+
+    tournament = None
+    names = []
+    elements = driver.find_elements_by_xpath("//div[@class='sportName tennis']/div")
+    for elem in elements:
+        if elem.get_attribute("class") in ["event__header", "event__header top"]:
+            # Look for atp-singles tournaments only -> ignore others
+            category = elem.find_element_by_class_name("event__title--type").text
+            if category != "ATP - SINGLES":
+                tournament = None
+                continue
+
+            name = elem.find_element_by_class_name("event__title--name").text
+
+
+            # Check if tournament matches are in qualification stage -> ignore qualifications
+            qualification_regex = re.match("Qualification", name)
+            if qualification_regex:
+                tournament = None
+                continue
+
+            names.append(name)
+
+            '''tournament_name_regex = re.search(r"^(.*) \(", name)
+            tournament_name = tournament_name_regex.group(1)
+            tournament_search = tournaments[tournaments["flash_name"] == tournament_name].copy()
+            # Tournament exists
+            if len(tournament.index) > 0:
+                tournament = tournament_search.iloc[0]
+                # Tournament to be updated
+                if tournament["year"] != datetime.now().year:
+                    tournament = scrap_tournament(tournament)
+                    tournaments[tournaments["flash_id"] == tournament["flash_id"]] = tournament
+            # New tournament to be scrapped
+            else:
+                return None
+                # create_tournament(tournament_name)'''
+
+
+    driver.quit()

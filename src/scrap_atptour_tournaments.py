@@ -129,38 +129,22 @@ def scrap_tournament(tournament):
     driver.get(match_url)
     time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
 
-    #tournament = None
     try:
-        name = driver.find_element_by_xpath("//div[@class='player-profile-hero-name']/div[1]").text
-        if name == "":
-            name = tournament_formatted_name
-
         location = driver.find_element_by_xpath("//div[@class='player-profile-hero-dash']/div/div[2]").text
         matched_location = location.split(", ")
-        city = matched_location[0]
-        country = matched_location[-1]
+        tournament["city"] = matched_location[0]
+        tournament["country"] = matched_location[-1]
 
-        img = driver.find_element_by_xpath("//div[@class='tournmanet-logo']/img")
-        img_src = img.get_attribute("src")
-        level_matched = re.search("categorystamps_(.+)_", img_src)
-        level = level_matched.group(1) if level_matched else None
-
-        number_of_competitors = None
         try:
             number_of_competitors = int(driver.find_element_by_xpath("//div[@class='bracket-sgl']/div[2]").text)
+            tournament["number_of_competitors"] = number_of_competitors
         except ValueError:
             pass
 
-        surface = driver.find_element_by_xpath("//div[@class='surface-bottom']/div[2]").text
+        tournament["surface"] = driver.find_element_by_xpath("//div[@class='surface-bottom']/div[2]").text
 
-        tournament["city"] = city
-        tournament["country"] = country
-        tournament["surface"] = surface
-        tournament["surface"] = surface
-        tournament["number_of_competitors"] = number_of_competitors
+        tournament["year"] = datetime.now().year
 
-        '''tournament = Tournament(tournament_id, None, name, tournament_formatted_name, city, country, surface,
-                                number_of_competitors, level, None)'''
     except NoSuchElementException:
         match_url = 'https://www.atptour.com/en/scores/archive/{0}/{1}/{2}/results' \
             .format(tournament_formatted_name, tournament_id, year) if url is None else url
@@ -170,20 +154,10 @@ def scrap_tournament(tournament):
         driver.get(match_url)
         time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
         try:
-            name = driver.find_element_by_xpath("//tr[@class='tourney-result with-icons']/td[2]/a").text
-
             location = driver.find_element_by_xpath("//tr[@class='tourney-result with-icons']/td[2]/span[1]").text
             matched_location = location.split(", ")
             city = matched_location[0] if len(matched_location) > 0 else None
             country = matched_location[-1] if len(matched_location) > 1 else None
-
-            level = None
-            try:
-                img = driver.find_element_by_xpath("//tr[@class='tourney-result with-icons']/td[1]/img")
-                img_src = img.get_attribute("src")
-                level = re.search(r"categorystamps_(.+)\.", img_src).group(1)
-            except NoSuchElementException:
-                pass
 
             number_of_competitors = int(driver.find_element_by_xpath(
                 "//td[@class='tourney-details-table-wrapper']/table/tbody/tr/td[1]/div[2]/div/a[1]/span").text)
@@ -191,11 +165,8 @@ def scrap_tournament(tournament):
             surface = driver.find_element_by_xpath(
                 "//td[@class='tourney-details-table-wrapper']/table/tbody/tr/td[2]/div[2]/div/span").text
 
-            '''tournament = Tournament(tournament_id, None, name, tournament_formatted_name, city, country, surface,
-                                    number_of_competitors, level, None)'''
             tournament["city"] = city
             tournament["country"] = country
-            tournament["surface"] = surface
             tournament["surface"] = surface
             tournament["number_of_competitors"] = number_of_competitors
 
@@ -246,9 +217,13 @@ def clean_tournaments(tournaments):
 
 
 def record_tournaments(tournaments):
-    tournaments_json = get_tournaments_json(tournaments)
     myclient = pymongo.MongoClient(MONGO_CLIENT)
     mydb = myclient["tennis"]
     mycol = mydb["tournaments"]
-    result = mycol.insert_many(tournaments_json)
+
+    records = tournaments.to_dict(orient='records')
+    result = mycol.insert_many(records)
     return result.acknowledged
+
+
+#def update_tournament(tournament):

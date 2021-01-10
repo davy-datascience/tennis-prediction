@@ -546,3 +546,17 @@ def add_players_info(dataset, players):
     dataset["p2_lastname"] = dataset.apply(lambda row: add_player_attribute("last_name", row["loser_id"], players),axis=1)
 
     return dataset
+
+
+def record_players(players):
+    # players[['birth_date']] = players[['birth_date']].astype(object).where(players[['birth_date']].notnull(), None)
+
+    myclient = pymongo.MongoClient(MONGO_CLIENT)
+    mydb = myclient["tennis"]
+    mycol = mydb["players"]
+
+    records = players.to_dict(orient='records')
+    result = mycol.insert_many(records)
+    return result.acknowledged
+
+
