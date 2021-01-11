@@ -1,11 +1,15 @@
 import time
+import locale
 from selenium import webdriver
 import pandas as pd
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
+
+from src.log import log
 
 
 def search_all_tournaments_atptour():
+    tournaments_atptour = None
     driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
     driver.get("https://www.atptour.com/en/tournaments")
     time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
@@ -18,40 +22,131 @@ def search_all_tournaments_atptour():
             url = elem.get_attribute("href")
             url_regex = re.search("/tournaments/(.*)/(.*)/overview$", url)
             atp_formatted_names.append(url_regex.group(1))
-            atp_ids.append(url_regex.group(2))
+            atp_ids.append(int(url_regex.group(2)))
 
         cities = []
+        countries = []
         elements = driver.find_elements_by_xpath("//tr[@class='tourney-result']/td[2]/span[1]")
 
         for elem in elements:
             location = elem.text
             matched_location = location.split(", ")
             cities.append(matched_location[0])
+            countries.append(matched_location[-1])
 
-        tournaments_atptour = pd.DataFrame({"atp_id": atp_ids, "atp_formatted_name": atp_formatted_names, "city": cities})
-        return tournaments_atptour
+        start_dates = []
+        end_dates = []
+        elements = driver.find_elements_by_xpath("//tr[@class='tourney-result']/td[2]/span[2]")
+
+        for elem in elements:
+            date_elem = elem.text
+            date_regex = re.search("^(.*) - (.*)$", date_elem)
+            start_date = date_regex.group(1)
+            start_dates.append(datetime.strptime(start_date, '%Y.%m.%d'))
+            end_date_str = date_regex.group(2)
+            end_date = datetime.strptime(end_date_str, '%Y.%m.%d')
+            end_date += timedelta(days=1)
+            end_dates.append(end_date)
+
+
+        tournaments_atptour = pd.DataFrame({"atp_id": atp_ids, "atp_formatted_name": atp_formatted_names,
+                                            "city": cities, "country": countries,
+                                            "start_date": start_dates, "end_date": end_dates})
 
     except Exception as ex:
+        log("tournaments", "Tournament header retrieval error")
         print("Tournament header retrieval error")
         print(ex)
-        return None
+
+    driver.quit()
+    return tournaments_atptour
 
 
-def search_tournament_atptour(tournament):
+def search_tournament_atptour(tournament, date):
+    flash_id = tournament["flash_id"]
+
     tournaments_atptour = search_all_tournaments_atptour()
 
+    # Tournament already exists - Checking if it has kept same references on atptour
+    if "atp_id" in tournament.index and "atp_formatted_name" in tournament.index:
+        atp_id = tournament["atp_id"]
+        atp_formatted_name = tournament["atp_formatted_name"]
+        tour_matched = tournaments_atptour[(tournaments_atptour["atp_id"] == atp_id)&(tournaments_atptour["atp_formatted_name"] == atp_formatted_name)]
 
-def scrap_tournament(tournament):
+        # Tournament has kept same references
+        if len(tour_matched.index) == 1:
+            return tournament
+
+        # Tournament has new references (changed atp_id)
+        tour_matched = tournaments_atptour[tournaments_atptour["atp_formatted_name"] == atp_formatted_name]
+        if len(tour_matched.index) == 1:
+            # New tournament kept same formatted_name but new atp_id
+            new_atp_id = tour_matched.iloc[0]["atp_id"]
+            log("tournament_updated", "Tournament '{0}' changed atp_id from '{1}' to '{2}'"
+                .format(flash_id, atp_id, new_atp_id))
+            tournament["atp_id"] = new_atp_id
+            return tournament
+
+        # Tournament has new references (changed atp_id and atp_formatted_name)
+        tour_matched = tournaments_atptour[tournaments_atptour["city"] == tournament["flash_name"]]
+        if len(tour_matched.index) == 1:
+            # New tournament kept same formatted_name but new atp_id
+            new_atp_id = tour_matched.iloc[0]["atp_id"]
+            new_formatted_name = tour_matched.iloc[0]["atp_formatted_name"]
+            log("tournament_updated", "Tournament '{0}' changed atp_id from '{1}' to '{2}'"
+                .format(flash_id, atp_id, new_atp_id))
+            log("tournament_updated", "Tournament '{0}' changed atp_formatted_name from '{1}' to '{2}'"
+                .format(flash_id, atp_formatted_name, new_formatted_name))
+            tournament["atp_id"] = new_atp_id
+            tournament["atp_formatted_name"] = new_formatted_name
+            return tournament
+
+        # Tournament new references not found
+        else:
+            log("tournament_not_found", "Tournament '{0}' not found, atp_id: '{1}' and atp_formatted_name: '{2}'"
+                .format(flash_id, atp_id, atp_formatted_name))
+            return None
+
+    # New tournament
+    else:
+        name = tournament["flash_name"]
+        country = tournament["country"]
+
+        tour_matched = tournaments_atptour[(tournaments_atptour["start_date"] <= date)
+                                           &(tournaments_atptour["end_date"] >= date)
+                                           &((tournaments_atptour["city"] == name)
+                                             | tournaments_atptour["country"] == country)]
+
+        # New tournament references found
+        if len(tour_matched.index) == 1:
+            new_atp_id = tour_matched.iloc[0]["atp_id"]
+            new_formatted_name = tour_matched.iloc[0]["atp_formatted_name"]
+
+            log("tournament_created", "Tournament '{0}' created"
+                .format(flash_id))
+
+        # New tournament references not found
+        else:
+            log("tournament_not_found", "Tournament '{0}' not found"
+                .format(flash_id))
+            return None
+
+
+
+def scrap_tournament(tournament, date):
+    tournament = search_tournament_atptour(tournament, date)
+    if tournament is None:
+        return None
+
     tournament_id = tournament["atp_id"]
     tournament_formatted_name = tournament["atp_formatted_name"]
-    year = tournament["year"]
+
     url = None
 
     driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
     driver.maximize_window()
     match_url = 'https://www.atptour.com/en/tournaments/{0}/{1}/overview'.format(tournament_formatted_name,
                                                                                  tournament_id) if url is None else url
-    print(match_url)
     driver.get(match_url)
     time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
 
@@ -69,9 +164,11 @@ def scrap_tournament(tournament):
         date_elem = driver.find_element_by_xpath("//div[@class='player-profile-hero-dash']/div/div[3]").text
         date_regex = re.search("^(.*) - .* (.*)$", date_elem)
         try:
+            locale.setlocale(locale.LC_ALL, 'en_US.utf8')
             full_date = "{0} {1}".format(date_regex.group(1), date_regex.group(2))
-            tournament["date"] = datetime.strptime(full_date, '%B %d %Y')
-        except Exception:
+            tournament["start_date"] = pd.to_datetime(full_date, format='%B %d %Y', utc=True)
+        except Exception as ex:
+            print(ex)
             pass
 
         if "tourney_level" not in tournament.index:
@@ -94,11 +191,11 @@ def scrap_tournament(tournament):
 
         tournament["surface"] = driver.find_element_by_xpath("//div[@class='surface-bottom']/div[2]").text
 
-        tournament["year"] = datetime.now().year
-
     except Exception:
         pass
 
     driver.quit()
 
     return tournament
+
+

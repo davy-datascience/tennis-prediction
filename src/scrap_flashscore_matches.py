@@ -190,7 +190,21 @@ def scrap_match_flashscore(match_id):
         return None
 
 
-def scrap_matches(driver, tournaments):
+def update_tournaments(tournaments, tournament):
+    '''Update tournaments dataframe with updated tournament series'''
+    indexes = tournaments.index[tournaments["flash_id"] == tournament["flash_id"]].tolist()
+    if len(indexes) > 0:
+        index = indexes[0]
+        for elem in tournaments.columns:
+            tournaments.at[index, elem] = tournament[elem]
+
+    else:
+        # Create tournament
+        pass
+
+
+def scrap_matches(driver, tournaments, date):
+    date = datetime.now()
     driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
     match_url = "https://www.flashscore.com/tennis"
     driver.get(match_url)
@@ -201,6 +215,8 @@ def scrap_matches(driver, tournaments):
     elements = driver.find_elements_by_xpath("//div[@class='sportName tennis']/div")
     for elem in elements:
         if elem.get_attribute("class") in ["event__header", "event__header top"]:
+            # Tournament header
+
             # Look for atp-singles tournaments only -> ignore others
             category = elem.find_element_by_class_name("event__title--type").text
             if category != "ATP - SINGLES":
@@ -209,29 +225,43 @@ def scrap_matches(driver, tournaments):
 
             name = elem.find_element_by_class_name("event__title--name").text
 
-
             # Check if tournament matches are in qualification stage -> ignore qualifications
-            qualification_regex = re.match("Qualification", name)
+            qualification_regex = re.search("Qualification", name)
             if qualification_regex:
                 tournament = None
                 continue
 
             names.append(name)
 
-            '''tournament_name_regex = re.search(r"^(.*) \(", name)
+            tournament_name_regex = re.search(r"^(.*) \(", name)
             tournament_name = tournament_name_regex.group(1)
             tournament_search = tournaments[tournaments["flash_name"] == tournament_name].copy()
-            # Tournament exists
-            if len(tournament.index) > 0:
-                tournament = tournament_search.iloc[0]
-                # Tournament to be updated
-                if tournament["year"] != datetime.now().year:
-                    tournament = scrap_tournament(tournament)
-                    tournaments[tournaments["flash_id"] == tournament["flash_id"]] = tournament
-            # New tournament to be scrapped
+
+            if len(tournament_search.index) > 0:
+                # Tournament exists
+                tournament_matched = tournament_search.iloc[0].copy()
+
+                if tournament_matched["start_date"].year != datetime.now().year:
+                    # Tournament to be updated
+                    tournament = scrap_tournament(tournament_matched, date)
+                    if tournament is not None:
+                        print("updating tournament {0}".format(tournament["flash_id"]))
+                        update_tournaments(tournaments, tournament)
+
             else:
-                return None
-                # create_tournament(tournament_name)'''
+                # New tournament to be scrapped
+
+                # TODO scrap new tournament
+                # create_tournament(tournament_name)
+                tournament = None
+                continue
+
+        else:
+            # Match row
+            if tournament is None:
+                # Match is not to be retrieved
+                continue
+
 
 
     driver.quit()
