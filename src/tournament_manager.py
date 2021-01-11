@@ -132,7 +132,6 @@ def search_tournament_atptour(tournament, date):
             return None
 
 
-
 def scrap_tournament(tournament, date):
     tournament = search_tournament_atptour(tournament, date)
     if tournament is None:
@@ -198,4 +197,16 @@ def scrap_tournament(tournament, date):
 
     return tournament
 
+
+def update_tournaments(tournaments, tournament):
+    '''Update tournaments dataframe with updated tournament series'''
+    indexes = tournaments.index[tournaments["flash_id"] == tournament["flash_id"]].tolist()
+    if len(indexes) > 0:
+        index = indexes[0]
+        for elem in tournaments.columns:
+            tournaments.at[index, elem] = tournament[elem]
+
+    else:
+        # Create tournament
+        pass
 

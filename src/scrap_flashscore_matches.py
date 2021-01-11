@@ -8,7 +8,7 @@ from src.Classes.match import Match
 from src.log import log
 import pandas as pd
 
-from src.tournament_manager import scrap_tournament
+from src.tournament_manager import scrap_tournament, update_tournaments
 
 
 def find_by_class(class_name, driver):
@@ -188,19 +188,6 @@ def scrap_match_flashscore(match_id):
         print("Error while scraping match id '{}'".format(match_id))
         print(type(ex))
         return None
-
-
-def update_tournaments(tournaments, tournament):
-    '''Update tournaments dataframe with updated tournament series'''
-    indexes = tournaments.index[tournaments["flash_id"] == tournament["flash_id"]].tolist()
-    if len(indexes) > 0:
-        index = indexes[0]
-        for elem in tournaments.columns:
-            tournaments.at[index, elem] = tournament[elem]
-
-    else:
-        # Create tournament
-        pass
 
 
 def scrap_matches(driver, tournaments, date):
