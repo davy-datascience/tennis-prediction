@@ -9,5 +9,5 @@ def get_chrome_driver(driver=None):
     """Get a new chrome driver or replace it to pass through DDOS protection"""
     if driver is not None:
         driver.quit()
-    driver = get_chrome_driver()
+    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
     return driver
