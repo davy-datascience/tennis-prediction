@@ -10,7 +10,7 @@ from src.log import log
 
 def search_all_tournaments_atptour():
     tournaments_atptour = None
-    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    driver = get_chrome_driver()
     driver.get("https://www.atptour.com/en/tournaments")
     time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
     try:
@@ -142,7 +142,7 @@ def scrap_tournament(tournament, date):
 
     url = None
 
-    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    driver = get_chrome_driver()
     driver.maximize_window()
     match_url = 'https://www.atptour.com/en/tournaments/{0}/{1}/overview'.format(tournament_formatted_name,
                                                                                  tournament_id) if url is None else url

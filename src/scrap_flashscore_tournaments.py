@@ -7,6 +7,8 @@ import pandas as pd
 from datetime import datetime
 from dateutil.tz import UTC
 
+from src.utils import get_chrome_driver
+
 config = configparser.ConfigParser()
 config.read("src/config.ini")
 MONGO_CLIENT = config['mongo']['client']
@@ -25,7 +27,7 @@ def find_id(t_name, t_formatted_name, flash_tournaments):
 
 
 def scrap_flash_score_tournaments(tournaments):
-    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    driver = get_chrome_driver()
     match_url = 'https://www.flashscore.com/tennis/'
     driver.get(match_url)
     time.sleep(0.5)

@@ -1,7 +1,7 @@
 from enum import Enum
 
 class MatchStatus(Enum):
-    FINISHED = 1
-    SCHEDULED = 2
-    LIVE = 3
-    WALKOVER = 4
+    Finished = 1
+    Scheduled = 2
+    Live = 3
+    Walkover = 4

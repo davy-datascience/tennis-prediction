@@ -19,7 +19,7 @@ MONGO_CLIENT = config['mongo']['client']
 
 def scrap_player_id(player_name):
     atptour_name = atptour_id = None
-    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    driver = get_chrome_driver()
     match_url = 'https://www.atptour.com/en/search-results/players?searchTerm={}'.format(player_name)
     driver.get(match_url)
     time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
@@ -110,7 +110,7 @@ def get_player_ids(players):
 
 def add_flash_info(player):
     player_name = player["player_name"]
-    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    driver = get_chrome_driver()
     match_url = 'https://s.livesport.services/search/?q={}&l=1&s=2&f=1%3B1&pid=2&sid=1'.format(player_name)
     driver.get(match_url)
     time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
@@ -200,7 +200,7 @@ def find_player_ids(dataset):
 
 
 def scrap_player(player_id):
-    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    driver = get_chrome_driver()
     match_url = 'https://www.atptour.com/en/players/player/{}/overview'.format(player_id)
     driver.get(match_url)
     time.sleep(0.5)  # Wait 1 sec to avoid IP being banned for scrapping

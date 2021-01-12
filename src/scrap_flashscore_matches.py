@@ -1,7 +1,7 @@
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 import re
 import time
-from selenium.common.exceptions import NoSuchElementException
 from datetime import datetime
 from dateutil.tz import UTC
 from src.Classes.match import Match
@@ -10,7 +10,7 @@ import pandas as pd
 
 from src.match_status import MatchStatus
 from src.tournament_manager import scrap_tournament, update_tournaments
-from src.utils import element_has_class
+from src.utils import element_has_class, get_chrome_driver
 
 
 def find_by_class(class_name, driver):
@@ -39,10 +39,14 @@ def find_tb_score(player, set_nb, driver):
     return int(score) if score else None
 
 
-def scrap_match_flashscore(match_id):
+def scrap_player_ids(driver):
+    pass
+
+
+def scrap_match_flashscore(match_id, status):
     try:
         match_id = "GIecNDAM"  # TODO DELETE LINE
-        driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+        driver = get_chrome_driver()
         match_url = "https://www.flashscore.com/match/" + match_id
         driver.get(match_url)
         time.sleep(1)
@@ -58,6 +62,10 @@ def scrap_match_flashscore(match_id):
         p2_regex = re.search("/player/(.+)/(.+)\'", p2_elem)
         p2_url = p2_regex.group(1)
         p2_id = p2_regex.group(2)
+
+        #p1_id, p2_id = scrap_player_ids(driver)
+
+        #if status == MatchStatus.Finished
 
         match_date = None
         try:
@@ -194,7 +202,7 @@ def scrap_match_flashscore(match_id):
 
 def scrap_matches(driver, tournaments, matches, date):
     date = datetime.now()
-    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    driver = get_chrome_driver()
     match_url = "https://www.flashscore.com/tennis"
     driver.get(match_url)
     #time.sleep(1)
@@ -280,6 +288,7 @@ def scrap_matches(driver, tournaments, matches, date):
 
             if match_status is None:
                 print("Status not found for match '{0}'".format(match_id))
+                continue
 
             match_search = matches[matches["match_id"] == match_id]
 
@@ -287,8 +296,30 @@ def scrap_matches(driver, tournaments, matches, date):
                 # Match exists
                 match = match_search.iloc[0]
 
+                if MatchStatus[match["status"]] != MatchStatus.Finished:
+                    # Match is not recorded as 'finished'
+                    if match_status == MatchStatus.Finished:
+                        # Match is truely finished
+                        # TODO gérer update
+                        pass
+                    elif match_status == MatchStatus.Walkover:
+                        # TODO suppression si walkover
+                        pass
+                    elif match_status == MatchStatus.Scheduled:
+                        # TODO update match datetime
+                        pass
+                    else:
+                        # TODO (pas prioritaire) gérer update match live
+                        pass
+
+
             else:
-                # Match doesn't exist
-                pass
+                if match_status == MatchStatus.Scheduled:
+                    # TODO Scrap match preview
+                    pass
+                elif match_status == MatchStatus.Finished:
+                    # TODO Scrap full new match
+                    pass
+
 
     driver.quit()

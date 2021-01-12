@@ -8,7 +8,7 @@ from selenium.common.exceptions import NoSuchElementException
 
 
 def find_matches_in_tournament(tour_id, year):
-    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    driver = get_chrome_driver()
 
     try:
         match_url = "https://www.flashscore.com/tennis/atp-singles/{0}-{1}/results/".format(tour_id, year)

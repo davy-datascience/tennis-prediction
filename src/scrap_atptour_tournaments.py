@@ -22,7 +22,7 @@ def get_tournaments_by_year(year_from, year_to):
     tour_years = []
     for year in range(year_from, year_to + 1):
         url = 'https://www.atptour.com/-/ajax/Scores/GetTournamentArchiveForYear/{}'.format(year)
-        driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+        driver = get_chrome_driver()
         driver.get(url)
         time.sleep(random.uniform(2, 5))
         tournaments_scrapped = None
@@ -122,7 +122,7 @@ def scrap_tournament(tournament):
     year = tournament["year"]
     url = None
 
-    driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+    driver = get_chrome_driver()
     driver.maximize_window()
     match_url = 'https://www.atptour.com/en/tournaments/{0}/{1}/overview'.format(tournament_formatted_name,
                                                                                  tournament_id) if url is None else url
@@ -149,7 +149,7 @@ def scrap_tournament(tournament):
         match_url = 'https://www.atptour.com/en/scores/archive/{0}/{1}/{2}/results' \
             .format(tournament_formatted_name, tournament_id, year) if url is None else url
         driver.quit()
-        driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
+        driver = get_chrome_driver()
         driver.maximize_window()
         driver.get(match_url)
         time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
