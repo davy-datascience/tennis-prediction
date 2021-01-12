@@ -9,6 +9,7 @@ MONGO_CLIENT = config['mongo']['client']
 
 
 def log(label, msg):
+    print("'{0}': {1}".format(label, msg))
     myclient = pymongo.MongoClient(MONGO_CLIENT)
     mydb = myclient["tennis"]
     mycol = mydb["logs"]

@@ -8,7 +8,9 @@ from src.Classes.match import Match
 from src.log import log
 import pandas as pd
 
+from src.match_status import MatchStatus
 from src.tournament_manager import scrap_tournament, update_tournaments
+from src.utils import element_has_class
 
 
 def find_by_class(class_name, driver):
@@ -190,18 +192,21 @@ def scrap_match_flashscore(match_id):
         return None
 
 
-def scrap_matches(driver, tournaments, date):
+def scrap_matches(driver, tournaments, matches, date):
     date = datetime.now()
     driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
     match_url = "https://www.flashscore.com/tennis"
     driver.get(match_url)
+    #time.sleep(1)
+    yesterday = driver.find_element_by_class_name('calendar__nav')
+    #yesterday.click()
     # TODO delete prev lines
 
     tournament = None
     names = []
     elements = driver.find_elements_by_xpath("//div[@class='sportName tennis']/div")
     for elem in elements:
-        if elem.get_attribute("class") in ["event__header", "event__header top"]:
+        if element_has_class(elem, "event__header"):
             # Tournament header
 
             # Look for atp-singles tournaments only -> ignore others
@@ -233,11 +238,14 @@ def scrap_matches(driver, tournaments, date):
                     tournament = scrap_tournament(tournament_matched, date)
                     if tournament is not None:
                         print("updating tournament {0}".format(tournament["flash_id"]))
-                        update_tournaments(tournaments, tournament)
+                        # update_tournaments(tournaments, tournament)
+                else:
+                    # Tournament exists and is up-to-date
+                    tournament = tournament_matched
 
             else:
                 # New tournament to be scrapped
-
+                print("Should scrap new tournament '{0}'".format(tournament_name))
                 # TODO scrap new tournament
                 # create_tournament(tournament_name)
                 tournament = None
@@ -249,6 +257,38 @@ def scrap_matches(driver, tournaments, date):
                 # Match is not to be retrieved
                 continue
 
+            elem_id = elem.get_attribute("id")
+            match_id_regex = re.search("^._._(.*)$", elem_id)
+            match_id = match_id_regex.group(1)
 
+            match_status = None
+            if element_has_class(elem, "event__match--live"):
+                match_status = MatchStatus.LIVE
+            else:
+                try:
+                    elem.find_element_by_class_name("event__time")
+                    match_status = MatchStatus.SCHEDULED
+                except NoSuchElementException:
+                    pass
+
+            if match_status is None:
+                status_str = elem.find_element_by_class_name("event__stage--block").text
+                if status_str in ["Finished", "Finished\n(retired)"]:
+                    match_status = MatchStatus.FINISHED
+                elif status_str == "Walkover)":
+                    match_status = MatchStatus.WALKOVER
+
+            if match_status is None:
+                print("Status not found for match '{0}'".format(match_id))
+
+            match_search = matches[matches["match_id"] == match_id]
+
+            if len(match_search) == 1:
+                # Match exists
+                match = match_search.iloc[0]
+
+            else:
+                # Match doesn't exist
+                pass
 
     driver.quit()
