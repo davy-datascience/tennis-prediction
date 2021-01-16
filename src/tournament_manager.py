@@ -6,6 +6,7 @@ import re
 from datetime import datetime, timedelta
 
 from src.log import log
+from src.utils import get_chrome_driver
 
 
 def search_all_tournaments_atptour():
@@ -209,4 +210,21 @@ def update_tournaments(tournaments, tournament):
     else:
         # Create tournament
         pass
+
+
+def get_tournament(tournament_id, tournaments):
+    tournament = tournaments[tournaments["flash_id"] == tournament_id]
+    return tournament.iloc[0] if len(tournament) > 0 else None
+
+
+def add_tournament_info(match, tournaments):
+    """Add tournament attributes to a match series"""
+    tour = get_tournament(match["tournament_id"], tournaments)
+
+    match["surface"] = tour["surface"]
+    match["tour_date"] = tour["start_date"]
+    match["draw_size"] = tour["number_of_competitors"]
+    match["tourney_level"] = tour["tourney_level"]
+    match["best_of"] = tour["best_of"]
+    match["country"] = tour["country"]
 

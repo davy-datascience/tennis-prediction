@@ -1,6 +1,7 @@
 import json
 
 import pandas as pd
+import numpy as np
 import re
 import time
 import pymongo
@@ -11,6 +12,9 @@ import configparser
 from datetime import date
 from src.Classes.player import Player, get_players_json, get_player_from_series, get_players_from_csv_dataframe
 from datetime import datetime
+
+from src.log import log
+from src.utils import get_chrome_driver
 
 config = configparser.ConfigParser()
 config.read("src/config.ini")
@@ -141,28 +145,15 @@ def add_flash_info(player):
 
 
 def add_info(player):
-    first_name = None
-    first_initial = None
-    last_name = None
-    full_name = None
-    birth_date = None
-    turned_pro = None
-    weight = None
-    height = None
-    flag_code = None
-    birth_city = None
-    birth_country = None
-    residence_city = None
-    residence_country = None
-    handedness = None
-    backhand = None
+    player = scrap_player(player["atp_id"])
 
-    first_name, first_initial, last_name, full_name, birth_date, turned_pro, weight, height, flag_code, \
-        birth_city, birth_country, residence_city, residence_country, handedness, backhand = \
-            scrap_player(player["atp_id"])
+    if player is None:
+        return pd.Series(np.empty((15),dtype=object))
 
-    return pd.Series((first_name, first_initial, last_name, full_name, birth_date, turned_pro, weight, height,
-                      flag_code, birth_city, birth_country, residence_city, residence_country, handedness, backhand))
+    return pd.Series((player["first_name"], player["first_initial"], player["last_name"], player["full_name"],
+                      player["birth_date"], player["turned_pro"], player["weight"], player["height"],
+                      player["flag_code"], player["birth_city"], player["birth_country"], player["residence_city"],
+                      player["residence_country"], player["handedness"], player["backhand"]))
 
 
 def find_player_ids(dataset):
@@ -199,16 +190,20 @@ def find_player_ids(dataset):
     return players
 
 
-def scrap_player(player_id):
+def scrap_player(atp_id):
     driver = get_chrome_driver()
-    match_url = 'https://www.atptour.com/en/players/player/{}/overview'.format(player_id)
+    match_url = 'https://www.atptour.com/en/players/player/{}/overview'.format(atp_id)
     driver.get(match_url)
     time.sleep(0.5)  # Wait 1 sec to avoid IP being banned for scrapping
 
-    player = None
+    player = pd.Series(dtype='float64')
     try:
-        first_name = driver.find_element_by_xpath("//div[@class='player-profile-hero-name']/div[1]").text
-        last_name = driver.find_element_by_xpath("//div[@class='player-profile-hero-name']/div[2]").text
+        player["first_name"] = driver.find_element_by_xpath("//div[@class='player-profile-hero-name']/div[1]").text
+        player["last_name"] = driver.find_element_by_xpath("//div[@class='player-profile-hero-name']/div[2]").text
+
+        player["first_initial"] = player["first_name"][0] if player["first_name"] is not None \
+                                                             and player["first_name"] != "" else None
+        player["full_name"] = "{0} {1}".format(player["last_name"], player["first_initial"])
 
         birth_date = None
         try:
@@ -220,7 +215,8 @@ def scrap_player(player_id):
             birth_date = datetime(int(birth_year), int(birth_month), int(birth_day))
         except Exception as exc:
             print("problem date")
-            print(type(exc))
+
+        player["birth_date"] = birth_date
 
         turned_pro = None
         try:
@@ -229,6 +225,8 @@ def scrap_player(player_id):
             turned_pro = int(turned_pro_str)
         except (NoSuchElementException, ValueError):
             pass
+        
+        player["turned_pro"] = turned_pro
 
         weight = None
         try:
@@ -246,60 +244,62 @@ def scrap_player(player_id):
         except (NoSuchElementException, ValueError, TypeError):
             pass
 
-        flag_code = driver.find_element_by_xpath("//div[@class='player-flag-code']").text
-        b_city = b_country = None
+        player["weight"] = weight
+        player["height"] = height
+
+        player["flag_code"] = driver.find_element_by_xpath("//div[@class='player-flag-code']").text
+        
+        birth_city = birth_country = None
         try:
             birth_place = driver.find_element_by_xpath("//div[@class='player-profile-hero-overflow']/div[2]/div["
                                                        "1]/table/tbody/tr[2]/td[1]/div/div[2]").text
             b_matched_location = birth_place.split(", ")
             if len(b_matched_location) > 1:
-                b_city = b_matched_location[0]
-                b_country = b_matched_location[-1]
+                birth_city = b_matched_location[0]
+                birth_country = b_matched_location[-1]
         except NoSuchElementException:
             pass
 
-        r_city = r_country = None
+        player["birth_city"] = birth_city
+        player["birth_country"] = birth_country
+
+        residence_city = residence_country = None
         try:
             residence = driver.find_element_by_xpath("//div[@class='player-profile-hero-overflow']/div[2]/div["
                                                      "1]/table/tbody/tr[2]/td[2]/div/div[2]").text
 
             r_matched_location = residence.split(", ")
             if len(r_matched_location) > 1:
-                r_city = r_matched_location[0]
-                r_country = r_matched_location[-1]
+                residence_city = r_matched_location[0]
+                residence_country = r_matched_location[-1]
         except NoSuchElementException:
             pass
 
-        hand = back_hand = None
+        player["residence_city"] = residence_city
+        player["residence_country"] = residence_country
+
+        handedness = backhand = None
         try:
             hands = driver.find_element_by_xpath("//div[@class='player-profile-hero-overflow']/div[2]/div["
                                                  "1]/table/tbody/tr[2]/td[3]/div/div[2]").text
             hands_matched = hands.split(", ")
             if len(hands_matched) > 1:
-                hand = hands_matched[0]
-                back_hand = hands_matched[-1]
+                handedness = hands_matched[0]
+                backhand = hands_matched[-1]
         except NoSuchElementException:
             pass
 
-        player = Player(player_id, None, None, first_name, last_name, birth_date, turned_pro, weight, height,
-                        flag_code, b_city, b_country, r_city, r_country, hand, back_hand)
+        player["handedness"] = handedness
+        player["backhand"] = backhand
 
     except Exception as ex:
-        print("Player not found : id= '{}'".format(player_id))
+        player = None
+        log("player_not_found", "Couldn't scrap player : atp_id= '{}'".format(atp_id))
         print(type(ex))
 
     driver.quit()
 
-    if player is not None:
-        # TODO put variables in player class
-        first_initial = player.first_name[0] if player.first_name is not None and player.first_name != "" else None
-        full_name = "{0} {1}".format(player.last_name, first_initial)
-
-        return player.first_name, first_initial, player.last_name, full_name, player.birth_date, \
-               player.turned_pro, player.weight, player.height, player.flag_code, player.birth_city, \
-               player.birth_country, player.residence_city, player.residence_country, player.handedness, player.back_hand
-    else:
-        return None, None, None, None, None, None, None, None, None, None, None, None, None, None, None
+    return player
 
 
 def set_missing_birth_country(birth_country, flag_code, countries):
@@ -528,7 +528,6 @@ def add_player_attribute(attribute, player_id, players):
         return None
 
 
-
 def add_players_info(dataset, players):
     dataset["p1_id"] = dataset.apply(lambda row: add_player_attribute("flash_id", row["winner_id"], players), axis=1)
     dataset["p2_id"] = dataset.apply(lambda row: add_player_attribute("flash_id", row["loser_id"], players), axis=1)
@@ -547,6 +546,30 @@ def add_players_info(dataset, players):
 
     return dataset
 
+
+def scrap_player_name_flashscore(flash_id, flash_url):
+    driver = get_chrome_driver()
+    match_url = "https://www.flashscore.com/player/{0}/{1}/".format(flash_url, flash_id)
+    driver.get(match_url)
+    time.sleep(1)
+    player_name = driver.find_element_by_class_name("teamHeader__name").text
+    driver.quit()
+    return player_name
+
+def scrap_new_player(flash_id, flash_url):
+    player_full_name = scrap_player_name_flashscore(flash_id, flash_url)
+    player_full_name, atp_id = scrap_player_id(player_full_name)
+    player = scrap_player(atp_id)
+
+    if player is None:
+        return None
+
+    player["flash_id"] = flash_id
+    player["flash_url"] = flash_url
+    player["player_name"] = player_full_name
+    player["atp_id"] = atp_id
+
+    return player
 
 def record_players(players):
     # players[['birth_date']] = players[['birth_date']].astype(object).where(players[['birth_date']].notnull(), None)

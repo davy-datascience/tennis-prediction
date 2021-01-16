@@ -79,7 +79,7 @@ def find_tournament_attribute(attribute, tourney_name, tournaments):
         return None
 
 
-def add_tournament_info(dataset, tournaments):
+def add_tourn_info(dataset, tournaments):
     dataset["tournament_id"] = dataset.apply(lambda row: find_tournament_attribute("flash_id", row["tourney_name"], tournaments), axis=1)
     dataset["country"] = dataset.apply(lambda row: find_tournament_attribute("country", row["tourney_name"], tournaments), axis=1)
     return dataset

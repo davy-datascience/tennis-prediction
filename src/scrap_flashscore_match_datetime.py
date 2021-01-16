@@ -113,10 +113,7 @@ def find_match_datetime(p1_lastname, p2_lastname, p1_displayname, p2_displayname
     return retrieved_datetime
 
 
-def find_matches_datetimes(p1_lastname, p2_lastname, p1_displayname, p2_displayname, tour_f_id, year, datetime, tour_matches):
-    if not pd.isna(datetime):
-        return datetime
-
+def find_matches_datetimes(p1_lastname, p2_lastname, p1_displayname, p2_displayname, tour_f_id, year, tour_matches):
     key = (tour_f_id, year)
     if key not in tour_matches:
         tour_matches[key] = find_matches_in_tournament(tour_f_id, year)
@@ -148,8 +145,7 @@ def add_matches_datetime(dataset):
     dataset["datetime"] = dataset.apply(
         lambda match: find_matches_datetimes(match["p1_lastname"], match["p2_lastname"], match["p1_displayname"],
                                              match["p2_displayname"], match["tournament_id"],
-                                             match["year"], match["datetime"], tour_matches)
+                                             match["year"], tour_matches)
         , axis=1)
-    # TODO remove match["datetime"]
 
     print("--- %s seconds ---" % (time.time() - start_time))

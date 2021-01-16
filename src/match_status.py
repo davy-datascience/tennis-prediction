@@ -4,4 +4,5 @@ class MatchStatus(Enum):
     Finished = 1
     Scheduled = 2
     Live = 3
-    Walkover = 4
+    Retired = 4
+    Walkover = 5
