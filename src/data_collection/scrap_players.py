@@ -1,24 +1,12 @@
 import json
-
 import pandas as pd
 import numpy as np
 import re
 import time
-import pymongo
-from dateutil.tz import UTC
-from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
-import configparser
-from datetime import date
-from src.Classes.player import Player, get_players_json, get_player_from_series, get_players_from_csv_dataframe
 from datetime import datetime
-
 from src.log import log
 from src.utils import get_chrome_driver
-
-config = configparser.ConfigParser()
-config.read("src/config.ini")
-MONGO_CLIENT = config['mongo']['client']
 
 
 def scrap_player_id(player_name):
@@ -545,41 +533,3 @@ def add_players_info(dataset, players):
     dataset["p2_lastname"] = dataset.apply(lambda row: add_player_attribute("last_name", row["loser_id"], players),axis=1)
 
     return dataset
-
-
-def scrap_player_name_flashscore(flash_id, flash_url):
-    driver = get_chrome_driver()
-    match_url = "https://www.flashscore.com/player/{0}/{1}/".format(flash_url, flash_id)
-    driver.get(match_url)
-    time.sleep(1)
-    player_name = driver.find_element_by_class_name("teamHeader__name").text
-    driver.quit()
-    return player_name
-
-def scrap_new_player(flash_id, flash_url):
-    player_full_name = scrap_player_name_flashscore(flash_id, flash_url)
-    player_full_name, atp_id = scrap_player_id(player_full_name)
-    player = scrap_player(atp_id)
-
-    if player is None:
-        return None
-
-    player["flash_id"] = flash_id
-    player["flash_url"] = flash_url
-    player["player_name"] = player_full_name
-    player["atp_id"] = atp_id
-
-    return player
-
-def record_players(players):
-    # players[['birth_date']] = players[['birth_date']].astype(object).where(players[['birth_date']].notnull(), None)
-
-    myclient = pymongo.MongoClient(MONGO_CLIENT)
-    mydb = myclient["tennis"]
-    mycol = mydb["players"]
-
-    records = players.to_dict(orient='records')
-    result = mycol.insert_many(records)
-    return result.acknowledged
-
-

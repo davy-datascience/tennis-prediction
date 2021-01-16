@@ -4,12 +4,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 
-from src.Classes.match import get_match_from_series
-from src.data_preparation import *
-from src.scrap_atptour_tournaments import *
-from src.scrap_flashscore_matches import *
-from src.scrap_flashscore_tournaments import scrap_flash_score_tournaments, add_tourn_info
-from src.scrap_players import *
+from src.data_collection.data_preparation import *
+from src.data_collection.scrap_atptour_tournaments import *
+from src.data_collection.scrap_flashscore_tournaments import scrap_flash_score_tournaments, add_tourn_info
+from src.data_collection.scrap_players import *
 
 config = configparser.ConfigParser()
 config.read("src/config.ini")
@@ -271,7 +269,7 @@ print(accuracy)
 from joblib import dump
 
 # dump the pipeline model
-dump(my_pipeline, filename="tennis_prediction.joblib")
+dump(my_pipeline, filename="../tennis_prediction.joblib")
 
 
 # Ideas : Nationality

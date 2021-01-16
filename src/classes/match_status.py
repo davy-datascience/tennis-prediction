@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class MatchStatus(Enum):
     Finished = 1
     Scheduled = 2

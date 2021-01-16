@@ -3,13 +3,10 @@ import re
 import pandas as pd
 import pymongo
 import configparser
-
 from datetime import datetime
-from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
 
 from src.log import log
-from src.scrap_players import scrap_new_player
+from src.data_collection.scrap_players import scrap_player_id, scrap_player
 from src.utils import get_chrome_driver
 
 
@@ -59,8 +56,8 @@ def scrap_all_player_ranks():
 
 
 def record_all_player_ranks(player_ranks):
-    myclient = pymongo.MongoClient(MONGO_CLIENT)
-    database = myclient["tennis"]
+    mongo_client = pymongo.MongoClient(MONGO_CLIENT)
+    database = mongo_client["tennis"]
     collection = database["player_ranks"]
 
     # Remove previous ranks
@@ -73,8 +70,8 @@ def record_all_player_ranks(player_ranks):
 
 
 def retrieve_all_player_ranks():
-    myclient = pymongo.MongoClient(MONGO_CLIENT)
-    database = myclient["tennis"]
+    mongo_client = pymongo.MongoClient(MONGO_CLIENT)
+    database = mongo_client["tennis"]
     collection = database["player_ranks"]
 
     player_ranks = pd.DataFrame(list(collection.find({}, {'_id': False})))
@@ -138,3 +135,52 @@ def add_player_info(match, players):
     match["p2_rank"], match["p2_rank_points"] = retrieve_player_rank_info(p2["atp_id"])
     match["p2_birth_country"] = p2["birth_country"]
     match["p2_residence_country"] = p2["residence_country"]
+
+
+def scrap_player_name_flashscore(flash_id, flash_url):
+    driver = get_chrome_driver()
+    match_url = "https://www.flashscore.com/player/{0}/{1}/".format(flash_url, flash_id)
+    driver.get(match_url)
+    time.sleep(1)
+    player_name = driver.find_element_by_class_name("teamHeader__name").text
+    driver.quit()
+    return player_name
+
+
+def scrap_new_player(flash_id, flash_url):
+    player_full_name = scrap_player_name_flashscore(flash_id, flash_url)
+    player_full_name, atp_id = scrap_player_id(player_full_name)
+    player = scrap_player(atp_id)
+
+    if player is None:
+        return None
+
+    player["flash_id"] = flash_id
+    player["flash_url"] = flash_url
+    player["player_name"] = player_full_name
+    player["atp_id"] = atp_id
+
+    return player
+
+
+def record_players(players):
+    mongo_client = pymongo.MongoClient(MONGO_CLIENT)
+    database = mongo_client["tennis"]
+    collection = database["players"]
+
+    # Remove previous players
+    collection.remove()
+
+    # Insert new players
+    records = players.to_dict(orient='records')
+    result = collection.insert_many(records)
+    return result.acknowledged
+
+
+def retrieve_players():
+    mongo_client = pymongo.MongoClient(MONGO_CLIENT)
+    database = mongo_client["tennis"]
+    collection = database["players"]
+
+    players = pd.DataFrame(list(collection.find({}, {'_id': False})))
+    return players

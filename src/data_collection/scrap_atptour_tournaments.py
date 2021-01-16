@@ -1,17 +1,11 @@
+import json
 import time
-from selenium import webdriver
 import pandas as pd
-import re
-import pymongo
-import configparser
 from selenium.common.exceptions import NoSuchElementException
-from src.Classes.tournament import *
 from datetime import datetime
 import random
 
-config = configparser.ConfigParser()
-config.read("src/config.ini")
-MONGO_CLIENT = config['mongo']['client']
+from src.utils import get_chrome_driver
 
 
 def get_tournaments_by_year(year_from, year_to):
@@ -214,16 +208,3 @@ def clean_tournaments(tournaments):
     tournaments.drop_duplicates(subset=["flash_id"], keep="last", inplace=True)'''
 
     return tournaments
-
-
-def record_tournaments(tournaments):
-    myclient = pymongo.MongoClient(MONGO_CLIENT)
-    mydb = myclient["tennis"]
-    mycol = mydb["tournaments"]
-
-    records = tournaments.to_dict(orient='records')
-    result = mycol.insert_many(records)
-    return result.acknowledged
-
-
-#def update_tournament(tournament):

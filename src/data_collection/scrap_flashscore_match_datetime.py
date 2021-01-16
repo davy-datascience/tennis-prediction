@@ -1,10 +1,11 @@
-from selenium import webdriver
 import pandas as pd
 import re
 import time
 from datetime import datetime
 from dateutil.tz import UTC
 from selenium.common.exceptions import NoSuchElementException
+
+from src.utils import get_chrome_driver
 
 
 def find_matches_in_tournament(tour_id, year):

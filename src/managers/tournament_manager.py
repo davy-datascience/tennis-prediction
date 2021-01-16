@@ -1,12 +1,17 @@
+import configparser
 import time
 import locale
-from selenium import webdriver
+import pymongo
 import pandas as pd
 import re
 from datetime import datetime, timedelta
 
 from src.log import log
 from src.utils import get_chrome_driver
+
+config = configparser.ConfigParser()
+config.read("src/config.ini")
+MONGO_CLIENT = config['mongo']['client']
 
 
 def search_all_tournaments_atptour():
@@ -228,3 +233,25 @@ def add_tournament_info(match, tournaments):
     match["best_of"] = tour["best_of"]
     match["country"] = tour["country"]
 
+
+def record_tournaments(tournaments):
+    mongo_client = pymongo.MongoClient(MONGO_CLIENT)
+    database = mongo_client["tennis"]
+    collection = database["tournaments"]
+
+    # Remove previous tournaments
+    collection.remove()
+
+    # Insert new tournaments
+    records = tournaments.to_dict(orient='records')
+    result = collection.insert_many(records)
+    return result.acknowledged
+
+
+def retrieve_tournaments():
+    mongo_client = pymongo.MongoClient(MONGO_CLIENT)
+    database = mongo_client["tennis"]
+    collection = database["tournaments"]
+
+    tournaments = pd.DataFrame(list(collection.find({}, {'_id': False})))
+    return tournaments
