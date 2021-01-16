@@ -263,6 +263,23 @@ def refactor_hand(hand, player_id, players):
         return None
 
 
+def set_match_order(match_round):
+    switcher = {
+        "1/64-finals": 2,
+        "1/32-finals": 3,
+        "1/16-finals": 4,
+        "1/8-finals": 5,
+        "Quarter-finals": 6,
+        "Semi-finals": 7,
+        "Final": 9,
+        "Group": 1,
+        "Qualification": 0,
+        "3rd place": 8,
+    }
+
+    return switcher.get(match_round, None)
+
+
 def refactor_values(dataset, players):
     dataset.rename(columns={"p1_1stIn": "p1_1st_in", "p1_1stWon": "p1_1st_won", "p1_2ndWon": "p1_2nd_won",
                             "p1_SvGms": "p1_sv_gms", "p1_bpSaved": "p1_bp_saved", "p1_bpFaced": "p1_bp_faced",
@@ -328,4 +345,20 @@ def refactor_values(dataset, players):
          "p2_tb5_score": "Int16", "p1_2nd_pts": "Int16", "p2_2nd_pts": "Int16", "p1_svpt_won": "Int16",
          "p2_svpt_won": "Int16", "datetime": "datetime64[ns, utc]", "tour_date": "datetime64[ns, utc]"})
 
-    return dataset
+    dataset_arr = []
+
+    distinct_tour = dataset[["tournament_id", "tour_date"]].drop_duplicates()
+
+    for index, row in distinct_tour.iterrows():
+        tour_matches = dataset[(dataset["tournament_id"] == row["tournament_id"])&(dataset["tour_date"] == row["tour_date"])].copy()
+        dataset_arr.append(tour_matches)
+
+    for tour_matches in dataset_arr:
+        tour_matches["order"] = tour_matches.apply(lambda row: set_match_order(row["round"]), axis=1)
+        tour_matches.sort_values(by=["order"], inplace=True)
+
+    dataset_ordered = pd.concat(dataset_arr)
+    dataset_ordered.drop(columns=["order"], inplace=True)
+
+    return dataset_ordered
+
