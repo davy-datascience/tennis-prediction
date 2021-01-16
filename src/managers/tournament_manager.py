@@ -1,17 +1,11 @@
-import configparser
 import time
 import locale
-import pymongo
 import pandas as pd
 import re
 from datetime import datetime, timedelta
 
 from src.log import log
-from src.utils import get_chrome_driver
-
-config = configparser.ConfigParser()
-config.read("src/config.ini")
-MONGO_CLIENT = config['mongo']['client']
+from src.utils import get_chrome_driver, get_mongo_client
 
 
 def search_all_tournaments_atptour():
@@ -235,7 +229,7 @@ def add_tournament_info(match, tournaments):
 
 
 def record_tournaments(tournaments):
-    mongo_client = pymongo.MongoClient(MONGO_CLIENT)
+    mongo_client = get_mongo_client()
     database = mongo_client["tennis"]
     collection = database["tournaments"]
 
@@ -249,7 +243,7 @@ def record_tournaments(tournaments):
 
 
 def retrieve_tournaments():
-    mongo_client = pymongo.MongoClient(MONGO_CLIENT)
+    mongo_client = get_mongo_client()
     database = mongo_client["tennis"]
     collection = database["tournaments"]
 

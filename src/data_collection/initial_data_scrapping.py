@@ -8,10 +8,7 @@ from src.data_collection.data_preparation import *
 from src.data_collection.scrap_atptour_tournaments import *
 from src.data_collection.scrap_flashscore_tournaments import scrap_flash_score_tournaments, add_tourn_info
 from src.data_collection.scrap_players import *
-
-config = configparser.ConfigParser()
-config.read("src/config.ini")
-MONGO_CLIENT = config['mongo']['client']
+from src.utils import get_mongo_client
 
 
 # Read the data
@@ -125,7 +122,7 @@ dataset = refactor_values(dataset, players)
 
 # Record Matches
 records = json.loads(dataset.T.to_json()).values()
-myclient = pymongo.MongoClient(MONGO_CLIENT)
+myclient = get_mongo_client()
 mydb = myclient["tennis"]
 mycol = mydb["matches"]
 mycol.insert_many(records)

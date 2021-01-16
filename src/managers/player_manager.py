@@ -1,18 +1,11 @@
 import time
 import re
 import pandas as pd
-import pymongo
-import configparser
 from datetime import datetime
 
 from src.log import log
 from src.data_collection.scrap_players import scrap_player_id, scrap_player
-from src.utils import get_chrome_driver
-
-
-config = configparser.ConfigParser()
-config.read("src/config.ini")
-MONGO_CLIENT = config['mongo']['client']
+from src.utils import get_chrome_driver, get_mongo_client
 
 
 def scrap_all_player_ranks():
@@ -56,7 +49,7 @@ def scrap_all_player_ranks():
 
 
 def record_all_player_ranks(player_ranks):
-    mongo_client = pymongo.MongoClient(MONGO_CLIENT)
+    mongo_client = get_mongo_client()
     database = mongo_client["tennis"]
     collection = database["player_ranks"]
 
@@ -70,7 +63,7 @@ def record_all_player_ranks(player_ranks):
 
 
 def retrieve_all_player_ranks():
-    mongo_client = pymongo.MongoClient(MONGO_CLIENT)
+    mongo_client = get_mongo_client()
     database = mongo_client["tennis"]
     collection = database["player_ranks"]
 
@@ -164,7 +157,7 @@ def scrap_new_player(flash_id, flash_url):
 
 
 def record_players(players):
-    mongo_client = pymongo.MongoClient(MONGO_CLIENT)
+    mongo_client = get_mongo_client()
     database = mongo_client["tennis"]
     collection = database["players"]
 
@@ -178,7 +171,7 @@ def record_players(players):
 
 
 def retrieve_players():
-    mongo_client = pymongo.MongoClient(MONGO_CLIENT)
+    mongo_client = get_mongo_client()
     database = mongo_client["tennis"]
     collection = database["players"]
 

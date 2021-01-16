@@ -1,16 +1,12 @@
-import configparser
-import pymongo
 from datetime import datetime
 from dateutil.tz import UTC
 
-config = configparser.ConfigParser()
-config.read("src/config.ini")
-MONGO_CLIENT = config['mongo']['client']
+from src.utils import get_mongo_client
 
 
 def log(label, msg):
     print("'{0}': {1}".format(label, msg))
-    myclient = pymongo.MongoClient(MONGO_CLIENT)
+    myclient = get_mongo_client()
     mydb = myclient["tennis"]
     mycol = mydb["logs"]
     mycol.insert_one({"label": label, "message": msg, "datetime": datetime.now(tz=UTC)})

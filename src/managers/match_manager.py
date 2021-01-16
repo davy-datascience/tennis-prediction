@@ -1,7 +1,5 @@
-import configparser
 from json import JSONEncoder
 from bson.json_util import loads
-import pymongo
 from pytz import timezone
 from selenium.common.exceptions import NoSuchElementException
 import re
@@ -14,11 +12,7 @@ import numpy as np
 from src.classes.match_status import MatchStatus
 from src.managers.player_manager import add_player_info
 from src.managers.tournament_manager import scrap_tournament, add_tournament_info
-from src.utils import element_has_class, get_chrome_driver
-
-config = configparser.ConfigParser()
-config.read("src/config.ini")
-MONGO_CLIENT = config['mongo']['client']
+from src.utils import element_has_class, get_chrome_driver, get_mongo_client
 
 
 def get_match_dtypes():
@@ -480,7 +474,7 @@ def get_matches_json(matches):
 
 
 def record_matches(matches):
-    mongo_cli = pymongo.MongoClient(MONGO_CLIENT)
+    mongo_cli = get_mongo_client()
     database = mongo_cli["tennis"]
     collection = database["matches"]
 
@@ -491,7 +485,7 @@ def record_matches(matches):
 
 
 def retrieve_matches():
-    mongo_cli = pymongo.MongoClient(MONGO_CLIENT)
+    mongo_cli = get_mongo_client()
     database = mongo_cli["tennis"]
     collection = database["matches"]
 

@@ -1,3 +1,6 @@
+import configparser
+
+from pymongo import MongoClient
 from selenium import webdriver
 
 
@@ -11,3 +14,10 @@ def get_chrome_driver(driver=None):
         driver.quit()
     driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
     return driver
+
+
+def get_mongo_client():
+    config = configparser.ConfigParser()
+    config.read("src/config.ini")
+    mongo_client = config['mongo']['client']
+    return MongoClient(mongo_client)
