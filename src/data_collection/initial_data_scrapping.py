@@ -8,8 +8,7 @@ from src.data_collection.data_preparation import *
 from src.data_collection.scrap_atptour_tournaments import *
 from src.data_collection.scrap_flashscore_tournaments import scrap_flash_score_tournaments, add_tourn_info
 from src.data_collection.scrap_players import *
-from src.utils import get_mongo_client
-
+from src.utils import *
 
 # Read the data
 list_datasets = []
@@ -128,24 +127,12 @@ mycol = mydb["matches"]
 mycol.insert_many(records)
 
 
-# TODO DELETE NEXT LINE
-games = extract_games(dataset["score"])
-
-dataset["p1_games_won"] = [game[0] for game in games]
-dataset["p2_games_won"] = [game[1] for game in games]
-# TODO CALCULATE GAME WON RATIO
-
-dataset.drop(dataset[(dataset["p1_SvGms"] == 0) | (dataset["p2_SvGms"] == 0)].index, inplace=True)
-
-dataset["p1_ace_ratio"] = divide_with_numba(dataset["p1_ace"].to_numpy(), dataset["p1_svpt"].to_numpy())
-dataset["p2_ace_ratio"] = divide_with_numba(dataset["p2_ace"].to_numpy(), dataset["p2_svpt"].to_numpy())
-dataset["p1_df_ratio"] = divide_with_numba(dataset["p1_df"].to_numpy(), dataset["p1_svpt"].to_numpy())
-dataset["p2_df_ratio"] = divide_with_numba(dataset["p2_df"].to_numpy(), dataset["p2_svpt"].to_numpy())
 
 
-# Break points Faced per return-game
-dataset["p1_bpFaced_ratio"] = divide_with_numba(dataset["p1_bpFaced"].to_numpy(), dataset["p1_SvGms"].to_numpy())
-dataset["p2_bpFaced_ratio"] = divide_with_numba(dataset["p2_bpFaced"].to_numpy(), dataset["p2_SvGms"].to_numpy())
+
+
+
+
 
 #dataset['tournament_date'] = pd.to_datetime(dataset['tourney_date'], format="%Y%m%d")
 
@@ -202,72 +189,3 @@ dataset.drop(columns=removed_cols, inplace=True)
 
 dataset = inverse_half_dataset(dataset)
 
-X = dataset.drop('p1_wins', axis=1)
-y = dataset["p1_wins"]
-
-# Separate the dataset into a training set and a test set
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-
-
-# Select categorical columns with relatively low cardinality (convenient but arbitrary)
-categorical_cols = [cname for cname in X_train.columns if
-                    X_train[cname].nunique() < 10 and
-                    X_train[cname].dtype == "object"]
-
-# Select numerical columns
-numerical_cols = [cname for cname in X_train.columns if
-                X_train[cname].dtype in ['int64', 'float64']]
-
-# Keep selected columns only
-my_cols = categorical_cols + numerical_cols
-X_train = X_train[my_cols].copy()
-X_test = X_test[my_cols].copy()
-
-# Preprocessing for numerical data 
-from sklearn.preprocessing import StandardScaler
-numerical_transformer = Pipeline(steps=[
-    ('simple', SimpleImputer(strategy='mean')), # Fill missing values
-    ('normalizer', StandardScaler()), # Normalize data
-])
-
-# Preprocessing for categorical data
-categorical_transformer = Pipeline(steps=[
-    ('imputer', SimpleImputer(strategy='most_frequent')),   # Fill missing values
-    ('onehot', OneHotEncoder(handle_unknown='ignore'))      # Create 1 column per value
-])
-
-# Bundle preprocessing for numerical and categorical data
-preprocessor = ColumnTransformer(
-    transformers=[
-        ('num', numerical_transformer, numerical_cols),
-        ('cat', categorical_transformer, categorical_cols)
-    ])
-
-# Define model
-my_model = LogisticRegression()
-
-# Bundle preprocessing and modeling code in a pipeline
-my_pipeline = Pipeline(steps=[('preprocessor', preprocessor),
-                      ('model', my_model)
-                     ])
-
-# Preprocessing of training data, fit model 
-my_pipeline.fit(X_train, y_train)
-
-# Preprocessing of validation data, get predictions
-y_pred = my_pipeline.predict(X_test)
-
-accuracy = sum(y_pred == y_test.to_numpy()) / len(y_pred)
-
-print(accuracy)
-
-
-# import joblib
-from joblib import dump
-
-# dump the pipeline model
-dump(my_pipeline, filename="../tennis_prediction.joblib")
-
-
-# Ideas : Nationality
-#  matchups, "winner_id", "loser_id",

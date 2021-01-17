@@ -2,6 +2,7 @@ import configparser
 
 from pymongo import MongoClient
 from selenium import webdriver
+from numba import jit
 
 
 def element_has_class(web_element, class_name):
@@ -21,3 +22,19 @@ def get_mongo_client():
     config.read("src/config.ini")
     mongo_client = config['mongo']['client']
     return MongoClient(mongo_client)
+
+
+@jit
+def add_with_numba(a, b):
+    return a + b
+
+
+@jit
+def substract_with_numba(a, b):
+    return a - b
+
+
+@jit
+def divide_with_numba(a, b):
+    """ Divide one column by an other column of a dataframe with increased performance thanks to vectorization """
+    return a / b

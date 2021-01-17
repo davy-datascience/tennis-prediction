@@ -178,22 +178,6 @@ def extract_game(s):
         return None
 
 
-@numba.vectorize
-def add_with_numba(a, b):
-    return a + b
-
-
-@numba.vectorize
-def substract_with_numba(a, b):
-    return a - b
-
-
-@numba.vectorize
-def divide_with_numba(a, b):
-    """ Divide one column by an other column of a dataframe with increased performance thanks to vectorization """
-    return a / b
-
-
 def get_bp_saved_ratio(bp_saved, bp_faced):
     """ Divide break point saved by break point faced, if no break point faced consider as 1: max ratio"""
     return 1 if bp_faced == 0 else (bp_saved / bp_faced)
