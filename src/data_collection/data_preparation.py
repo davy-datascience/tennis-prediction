@@ -291,8 +291,7 @@ def refactor_values(dataset, players):
          'p1_svpt_ratio', 'p2_svpt_ratio', 'p1_1st_won_ratio', 'p2_1st_won_ratio', 'p1_2nd_won_ratio',
          'p2_2nd_won_ratio', 'p1_sv_gms_won', 'p2_sv_gms_won', 'p1_sv_gms_won_ratio', 'p2_sv_gms_won_ratio',
          'p1_bp_saved_ratio', 'p2_bp_saved_ratio', 'p1_wins', 'prediction', 'prediction_version']]
-    
-    
+
     dataset["round"] = dataset["round"].apply(lambda r: refactor_round(r))
 
     dataset["p1_hand"] = dataset.apply(lambda row: refactor_hand(row["p1_hand"], row["p1_id"], players), axis=1)
@@ -329,20 +328,4 @@ def refactor_values(dataset, players):
          "p2_tb5_score": "Int16", "p1_2nd_pts": "Int16", "p2_2nd_pts": "Int16", "p1_svpt_won": "Int16",
          "p2_svpt_won": "Int16", "datetime": "datetime64[ns, utc]", "tour_date": "datetime64[ns, utc]"})
 
-    dataset_arr = []
-
-    distinct_tour = dataset[["tournament_id", "tour_date"]].drop_duplicates()
-
-    for index, row in distinct_tour.iterrows():
-        tour_matches = dataset[(dataset["tournament_id"] == row["tournament_id"])&(dataset["tour_date"] == row["tour_date"])].copy()
-        dataset_arr.append(tour_matches)
-
-    for tour_matches in dataset_arr:
-        tour_matches["order"] = tour_matches.apply(lambda row: set_match_order(row["round"]), axis=1)
-        tour_matches.sort_values(by=["order"], inplace=True)
-
-    dataset_ordered = pd.concat(dataset_arr)
-    dataset_ordered.drop(columns=["order"], inplace=True)
-
-    return dataset_ordered
-
+    return dataset
