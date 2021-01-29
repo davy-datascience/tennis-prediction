@@ -226,26 +226,3 @@ def add_tournament_info(match, tournaments):
     match["tourney_level"] = tour["tourney_level"]
     match["best_of"] = tour["best_of"]
     match["country"] = tour["country"]
-
-
-def record_tournaments(tournaments):
-    mongo_client = get_mongo_client()
-    database = mongo_client["tennis"]
-    collection = database["tournaments"]
-
-    # Remove previous tournaments
-    collection.remove()
-
-    # Insert new tournaments
-    records = tournaments.to_dict(orient='records')
-    result = collection.insert_many(records)
-    return result.acknowledged
-
-
-def retrieve_tournaments():
-    mongo_client = get_mongo_client()
-    database = mongo_client["tennis"]
-    collection = database["tournaments"]
-
-    tournaments = pd.DataFrame(list(collection.find({}, {'_id': False})))
-    return tournaments

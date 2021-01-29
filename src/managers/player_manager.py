@@ -154,26 +154,3 @@ def scrap_new_player(flash_id, flash_url):
     player["atp_id"] = atp_id
 
     return player
-
-
-def record_players(players):
-    mongo_client = get_mongo_client()
-    database = mongo_client["tennis"]
-    collection = database["players"]
-
-    # Remove previous players
-    collection.remove()
-
-    # Insert new players
-    records = players.to_dict(orient='records')
-    result = collection.insert_many(records)
-    return result.acknowledged
-
-
-def retrieve_players():
-    mongo_client = get_mongo_client()
-    database = mongo_client["tennis"]
-    collection = database["players"]
-
-    players = pd.DataFrame(list(collection.find({}, {'_id': False})))
-    return players
