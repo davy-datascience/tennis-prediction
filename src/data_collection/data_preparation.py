@@ -28,9 +28,11 @@ def inverse_half_dataset(dataset):
 def inverse_dataset(dataset):
     """inverse 50% of the dataset - for option 2"""
     inv = dataset.copy()
-    for col in long_col + short_col:
-        inv["p1_" + col] = dataset["p2_" + col]
-        inv["p2_" + col] = dataset["p1_" + col]
+    for col in dataset.columns:
+        if col.startswith("p1") and col != "p1_wins":
+            inv[col] = dataset["p2" + col[2:]]
+        elif col.startswith("p2"):
+            inv[col] = dataset["p1" + col[2:]]
 
     inv["p1_wins"] = ~dataset["p1_wins"]
     return inv
