@@ -119,12 +119,10 @@ dataset["p2_bpSaved_ratio"] = [get_bp_saved_ratio(row[0], row[1]) for row in dat
 dataset = refactor_values(dataset, players)
 
 
-# Record Matches
-records = json.loads(dataset.T.to_json()).values()
-myclient = get_mongo_client()
-mydb = myclient["tennis"]
-mycol = mydb["matches"]
-mycol.insert_many(records)
+matches = dataset.copy()
+
+matches["p1_is_home"] = matches.apply(lambda match: match["p1_birth_country"] == match["country"], axis=1)
+matches["p2_is_home"] = matches.apply(lambda match: match["p2_birth_country"] == match["country"], axis=1)
 
 
 
@@ -132,51 +130,43 @@ mycol.insert_many(records)
 
 
 
+def get_player_matches(p_id):
+    all_wins = matches[matches["p1_id"] == p_id]
+    all_lost = matches[matches["p2_id"] == p_id]
+    player_results[p_id] = pd.concat([all_wins, inverse_dataset(all_lost)]).sort_index()
 
+player_ids = players["flash_id"]
 
-#dataset['tournament_date'] = pd.to_datetime(dataset['tourney_date'], format="%Y%m%d")
-
-
-player_ids = np.unique(np.concatenate([dataset["p1_id"].unique(), dataset["p2_id"].unique()]))
-
-
-import time
-
-start_time = time.time()
 player_results = {}
 
-for pid in player_ids:
-    '''idx = np.where((dataset["p1_id"] == pid) | (dataset["p2_id"] == pid))
-    all_matchs = dataset.iloc[idx[0]]'''
-    all_matchs = dataset.loc[(dataset["p1_id"] == pid) | (dataset["p2_id"] == pid)]
-    all_wins = all_matchs[all_matchs["p1_id"] == pid]
-    all_lost = all_matchs[all_matchs["p2_id"] == pid]
-
-    player_results[pid]= pd.concat([all_wins, inverse_dataset(all_lost)]).sort_index()
+start_time = time.time()
+test = player_ids.apply(get_player_matches)
 
 print("--- %s seconds ---" % (time.time() - start_time))
 
+
+#matches.apply()
 
 start_time = time.time()
 results = [get_previous_results(player_results, index, ids[0], ids[1])
-           for index, ids in dataset[["p1_id", "p2_id", "datetime", "tour_date"]].iterrows()]
+           for index, ids in matches[["p1_id", "p2_id", "datetime", "tour_date"]].iterrows()]
 print("--- %s seconds ---" % (time.time() - start_time))
 
 
-dataset["p1_ace_ratio_last3"] = [result[0] for result in results]
-dataset["p2_ace_ratio_last3"] = [result[1] for result in results]
-dataset["p1_df_ratio_last3"] = [result[2] for result in results]
-dataset["p2_df_ratio_last3"] = [result[3] for result in results]
-dataset["p1_1stIn_ratio_last3"] = [result[4] for result in results]
-dataset["p2_1stIn_ratio_last3"] = [result[5] for result in results]
-dataset["p1_1stWon_ratio_last3"] = [result[6] for result in results]
-dataset["p2_1stWon_ratio_last3"] = [result[7] for result in results]
-dataset["p1_2ndWon_ratio_last3"] = [result[8] for result in results]
-dataset["p2_2ndWon_ratio_last3"] = [result[9] for result in results]
-dataset["p1_bpSaved_ratio_last3"] = [result[10] for result in results]
-dataset["p2_bpSaved_ratio_last3"] = [result[11] for result in results]
-dataset["p1_bpFaced_ratio_last3"] = [result[12] for result in results]
-dataset["p2_bpFaced_ratio_last3"] = [result[13] for result in results]
+matches["p1_ace_ratio_last3"] = [result[0] for result in results]
+matches["p2_ace_ratio_last3"] = [result[1] for result in results]
+matches["p1_df_ratio_last3"] = [result[2] for result in results]
+matches["p2_df_ratio_last3"] = [result[3] for result in results]
+matches["p1_1stIn_ratio_last3"] = [result[4] for result in results]
+matches["p2_1stIn_ratio_last3"] = [result[5] for result in results]
+matches["p1_1stWon_ratio_last3"] = [result[6] for result in results]
+matches["p2_1stWon_ratio_last3"] = [result[7] for result in results]
+matches["p1_2ndWon_ratio_last3"] = [result[8] for result in results]
+matches["p2_2ndWon_ratio_last3"] = [result[9] for result in results]
+matches["p1_bpSaved_ratio_last3"] = [result[10] for result in results]
+matches["p2_bpSaved_ratio_last3"] = [result[11] for result in results]
+matches["p1_bpFaced_ratio_last3"] = [result[12] for result in results]
+matches["p2_bpFaced_ratio_last3"] = [result[13] for result in results]
 
 removed_cols = ["tourney_id", "score", "minutes", "p1_ace", "p1_df", "p1_svpt", "p1_1stIn", "p1_1stWon", "p1_2ndWon",
                 "p1_SvGms", "p1_SvGms", "p1_bpSaved", "p1_bpFaced", "p2_ace", "p2_df", "p2_svpt", "p2_1stIn",
@@ -185,7 +175,7 @@ removed_cols = ["tourney_id", "score", "minutes", "p1_ace", "p1_df", "p1_svpt", 
                 "p1_bpSaved_ratio", "p2_ace_ratio", "p2_df_ratio", "p2_1stIn_ratio", "p2_1stWon_ratio",
                 "p2_2ndWon_ratio", "p2_bpSaved_ratio", "p1_bpFaced_ratio", "p2_bpFaced_ratio","match_num", "p1_id",
                 "p2_id", "p1_rank", "p2_rank", "tourney_date"]
-dataset.drop(columns=removed_cols, inplace=True)
+matches.drop(columns=removed_cols, inplace=True)
 
-dataset = inverse_half_dataset(dataset)
+matches = inverse_half_dataset(matches)
 
