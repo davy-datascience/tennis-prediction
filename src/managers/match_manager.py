@@ -54,7 +54,7 @@ def get_match_ordered_attributes():
             'p1_2nd_pts', 'p2_2nd_pts', 'p1_svpt_won', 'p2_svpt_won', 'p1_1st_serve_ratio', 'p2_1st_serve_ratio',
             'p1_svpt_ratio', 'p2_svpt_ratio', 'p1_1st_won_ratio', 'p2_1st_won_ratio', 'p1_2nd_won_ratio',
             'p2_2nd_won_ratio', 'p1_sv_gms_won', 'p2_sv_gms_won', 'p1_sv_gms_won_ratio', 'p2_sv_gms_won_ratio',
-            'p1_bp_saved_ratio', 'p2_bp_saved_ratio', 'p1_wins', 'prediction', 'prediction_version']
+            'p1_bp_saved_ratio', 'p2_bp_saved_ratio', 'p1_wins', 'prediction', 'prediction_model']
 
 
 '''def find_by_class(class_name, driver):
@@ -442,6 +442,8 @@ def scrap_matches(driver, matches_date):
                         # Match is truely finished
                         match = scrap_match_flashscore(match_id, match_status)
                         match["_id"] = match_found["_id"]
+                        match["prediction"] = match_found["prediction"]
+                        match["prediction_model"] = match_found["prediction_model"]
                         update_match(match)
                     elif match_status == MatchStatus.Walkover:
                         # Match has been canceled
@@ -474,6 +476,8 @@ def scrap_matches(driver, matches_date):
                         log("scrap_new_match", "Couldn't scrap match '{0}'".format(match_id))
                         continue
 
+                    match["prediction"] = None
+                    match["prediction_model"] = None
                     create_match(match)
 
     driver.quit()

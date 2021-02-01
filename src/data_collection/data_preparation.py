@@ -292,7 +292,7 @@ def refactor_values(dataset, players):
          'p1_2nd_pts', 'p2_2nd_pts', 'p1_svpt_won', 'p2_svpt_won', 'p1_1st_serve_ratio', 'p2_1st_serve_ratio',
          'p1_svpt_ratio', 'p2_svpt_ratio', 'p1_1st_won_ratio', 'p2_1st_won_ratio', 'p1_2nd_won_ratio',
          'p2_2nd_won_ratio', 'p1_sv_gms_won', 'p2_sv_gms_won', 'p1_sv_gms_won_ratio', 'p2_sv_gms_won_ratio',
-         'p1_bp_saved_ratio', 'p2_bp_saved_ratio', 'p1_wins', 'prediction', 'prediction_version']]
+         'p1_bp_saved_ratio', 'p2_bp_saved_ratio', 'p1_wins', 'prediction', 'prediction_model']]
 
     dataset["round"] = dataset["round"].apply(lambda r: refactor_round(r))
 
