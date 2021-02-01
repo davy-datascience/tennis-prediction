@@ -41,7 +41,7 @@ def get_match_dtypes():
 
 
 def get_match_ordered_attributes():
-    return ['match_id', 'status', 'tournament_id', 'p1_id', 'p1_url', 'p2_id', 'p2_url', 'surface', 'datetime',
+    return ['match_id', 'status', 'tournament_id', 'p1_id', 'p2_id', 'surface', 'datetime',
             'tour_date', 'draw_size', 'tourney_level', 'best_of', 'round', 'minutes', 'country',
             'p1_hand', 'p1_backhand', 'p1_ht', 'p1_weight', 'p1_age', 'p1_ace', 'p1_df', 'p1_svpt', 'p1_1st_in',
             'p1_1st_won', 'p1_2nd_won', 'p1_sv_gms', 'p1_bp_saved', 'p1_bp_faced', 'p1_rank', 'p1_rank_points',
@@ -279,6 +279,10 @@ def scrap_match_flashscore(match_id, status):
 
 
 def create_match(match):
+    if match["status"] == MatchStatus.Finished.name:
+        # When match is finished, record match with ordered attributes
+        match = match[get_match_ordered_attributes()]
+
     result = q_create_match(match.to_dict())
 
     if not result:
@@ -289,6 +293,10 @@ def create_match(match):
 
 
 def update_match(match):
+    if match["status"] == MatchStatus.Finished.name:
+        # When match is finished, record match with ordered attributes
+        match = match[get_match_ordered_attributes()]
+
     try:
         q_update_match(match["_id"], match.drop(labels=["_id"]).to_dict())
         # TODO Delete next print
