@@ -3,12 +3,17 @@ from selenium.common.exceptions import NoSuchElementException
 import re
 import time
 from datetime import datetime
+
+from selenium.webdriver.common.keys import Keys
+
 from src.log import log
 import pandas as pd
 
 from src.classes.match_status import MatchStatus
 from src.managers.player_manager import add_player_info
-from src.managers.tournament_manager import scrap_tournament, add_tournament_info
+from src.managers.tournament_manager import scrap_tournament, add_tournament_info, update_tournament, create_tournament
+from src.queries.match_queries import find_match_by_id, q_update_match, q_create_match, q_delete_match
+from src.queries.tournament_queries import find_tournament_by_name
 from src.utils import element_has_class, get_chrome_driver, get_mongo_client
 
 
@@ -94,7 +99,7 @@ def scrap_player_ids(driver):
     return p1_id, p1_url, p2_id, p2_url
 
 
-def scrap_match_flashscore(match_id, status, players, tournaments):
+def scrap_match_flashscore(match_id, status):
     match = pd.Series([match_id], index=["match_id"])
     driver = get_chrome_driver()
 
@@ -108,10 +113,10 @@ def scrap_match_flashscore(match_id, status, players, tournaments):
             .get_attribute("onclick")
         tournament_regex = re.search("atp-singles/(.*)/", tournament_elem)
         match["tournament_id"] = tournament_regex.group(1)
-        add_tournament_info(match, tournaments)
+        add_tournament_info(match)
 
         match["p1_id"], match["p1_url"], match["p2_id"], match["p2_url"] = scrap_player_ids(driver)
-        add_player_info(match, players)
+        add_player_info(match)
 
         match_date = None
         try:
@@ -269,44 +274,25 @@ def scrap_match_flashscore(match_id, status, players, tournaments):
     return match
 
 
-def create_match(match, matches):
-    for attribute in get_match_ordered_attributes():
-        if attribute not in match.index:
-            match[attribute] = None
-
-    match = match[get_match_ordered_attributes()]
-
-    match_df = pd.DataFrame(match).T
-    match_df = match_df.astype(get_match_dtypes())
-
-    matches = pd.concat([matches, match_df])
-    matches.reset_index(drop=True, inplace=True)
-
-    return matches
+def create_match(match):
+    return q_create_match(match)
 
 
-def update_match(match, matches):
-    for attribute in get_match_ordered_attributes():
-        if attribute not in match.index:
-            match[attribute] = None
+def update_match(match):
+    result = q_update_match(match["_id"], match.drop(labels=["_id"]).to_dict())
 
-    match = match[get_match_ordered_attributes()]
-
-    """match_df = pd.DataFrame(match).T
-    match_df = match_df.astype(get_match_dtypes)"""
-
-    index_match = matches.index[matches["match_id"] == match["match_id"]].tolist()[0]
-    for elem in matches.columns:
-        matches.at[index_match, elem] = match[elem]
-
-    return matches
+    if not result:
+        log("match_update", "match '{0}' couldn't be updated".format(match["match_id"]))
 
 
-def delete_match(match_id, matches):
-    index_match = matches.index[matches["match_id"] == match_id].tolist()[0]
+def delete_match(_id):
+    result = q_delete_match(_id)
+
+    if not result:
+        log("match_delete", "match '{0}' couldn't be updated".format(_id))
 
 
-def scrap_matches(driver, players, tournaments, matches, matches_date):
+def scrap_matches(driver, matches_date):
     matches_date = datetime.now()
     driver = get_chrome_driver()
     match_url = "https://www.flashscore.com/tennis"
@@ -319,7 +305,6 @@ def scrap_matches(driver, players, tournaments, matches, matches_date):
     # TODO delete prev lines
 
     tournament = None
-    names = []
     elements = driver.find_elements_by_xpath("//div[@class='sportName tennis']/div")
     for elem in elements:
         if element_has_class(elem, "event__header"):
@@ -339,33 +324,60 @@ def scrap_matches(driver, players, tournaments, matches, matches_date):
                 tournament = None
                 continue
 
-            names.append(name)
-
             tournament_name_regex = re.search(r"^(.*) \(", name)
             tournament_name = tournament_name_regex.group(1)
-            tournament_search = tournaments[tournaments["flash_name"] == tournament_name].copy()
+            tournament_found = find_tournament_by_name(tournament_name)
 
-            if len(tournament_search.index) > 0:
+            if tournament_found:
                 # Tournament exists
-                tournament_matched = tournament_search.iloc[0].copy()
-
-                if tournament_matched["start_date"].year != datetime.now().year:
+                if tournament_found["start_date"].year != datetime.now().year:
                     # Tournament to be updated
-                    tournament = scrap_tournament(tournament_matched, matches_date)
+                    tournament = scrap_tournament(tournament_found, matches_date)
                     if tournament is not None:
                         print("updating tournament {0}".format(tournament["flash_id"]))
-                        # update_tournaments(tournaments, tournament)
+                        update_tournament(tournament)
                 else:
                     # Tournament exists and is up-to-date
-                    tournament = tournament_matched
+                    tournament = tournament_found
 
             else:
                 # New tournament to be scrapped
-                print("Should scrap new tournament '{0}'".format(tournament_name))
-                # TODO scrap new tournament
-                # create_tournament(tournament_name)
-                tournament = None
-                continue
+
+                # Find flash_id in "current tournaments" section
+                el = driver.find_element_by_xpath("//li[@id='lmenu_5724']/a")
+                if not element_has_class(el, "active"):
+                    driver.execute_script("arguments[0].click();", el.find_element_by_xpath("a"))
+                    time.sleep(1)
+
+                flash_names = []
+                flash_ids = []
+                tournaments_info = driver.find_elements_by_xpath("//li[@id='lmenu_5724']/ul/li/a")
+
+                for tournament_info in tournaments_info:
+                    flash_names.append(tournament_info.get_property("text"))
+
+                    link = tournament_info.get_attribute("href")
+                    flash_id = re.search("atp-singles/(.+)/$", link).group(1)
+                    flash_ids.append(flash_id)
+
+                flash_tournaments = pd.DataFrame({"name": flash_names, "flash_id": flash_ids})
+
+                tournament_matched = flash_tournaments[flash_tournaments["name"] == tournament_name]
+
+                if len(tournament_matched.index) != 1:
+                    log("scrap_new_tournament", "Couldn't find flashscore tournament id for '{0}'"
+                        .format(tournament_name))
+                    continue
+
+                tournament_id = tournament_matched.iloc[0]["flash_id"]
+
+                print("Creating tournament {0}".format(tournament["flash_id"]))
+
+                tournament_scrapped = scrap_tournament(pd.Series({"flash_id": tournament_id}), matches_date)
+
+                if tournament_scrapped:
+                    create_tournament(tournament_scrapped)
+                    tournament = tournament_scrapped
 
         else:
             # Match row
@@ -402,21 +414,20 @@ def scrap_matches(driver, players, tournaments, matches, matches_date):
                 print("Status not found for match '{0}'".format(match_id))
                 continue
 
-            match_search = matches[matches["match_id"] == match_id]
+            match_found = find_match_by_id(match_id)
 
-            if len(match_search) == 1:
+            if match_found:
                 # Match exists
-                match_found = match_search.iloc[0]
-
                 if MatchStatus[match_found["status"]] not in [MatchStatus.Finished, MatchStatus.Retired]:
                     # Match is not recorded as 'finished'
                     if match_status in [MatchStatus.Finished, MatchStatus.Retired]:
                         # Match is truely finished
-                        match = scrap_match_flashscore(match_id, match_status, players, tournaments)
-                        matches = update_match(match, matches)
+                        match = scrap_match_flashscore(match_id, match_status)
+                        match["_id"] = match_found["_id"]
+                        update_match(match)
                     elif match_status == MatchStatus.Walkover:
                         # Match has been canceled
-                        matches = delete_match(match_id, matches)
+                        delete_match(match_found["_id"])
                         pass
                     elif match_status == MatchStatus.Scheduled:
                         # Updating match datetime if changed
@@ -428,7 +439,7 @@ def scrap_matches(driver, players, tournaments, matches, matches_date):
 
                         if match_found["datetime"] != match_date:
                             match_found["datetime"] = match_date
-                            matches = update_match(match_found, matches)
+                            update_match(match_found)
 
                     else:
                         # TODO (pas prioritaire) gérer update match live
@@ -439,7 +450,12 @@ def scrap_matches(driver, players, tournaments, matches, matches_date):
                 match = None
                 if match_status in [MatchStatus.Scheduled, MatchStatus.Finished, MatchStatus.Retired]:
                     # Scrap match preview
-                    match = scrap_match_flashscore(match_id, match_status, players, tournaments)
-                    matches = create_match(match, matches)
+                    match = scrap_match_flashscore(match_id, match_status)
+
+                    if not match:
+                        log("scrap_new_match", "Couldn't scrap match '{0}'".format(match_id))
+                        continue
+
+                    create_match(match)
 
     driver.quit()

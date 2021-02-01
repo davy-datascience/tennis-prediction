@@ -3,6 +3,8 @@ import numpy as np
 
 from datetime import datetime
 from json import JSONEncoder
+
+from bson import ObjectId
 from bson.json_util import loads
 
 from src.utils import get_mongo_client
@@ -22,10 +24,8 @@ class MatchEncoder(JSONEncoder):
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
         elif isinstance(obj, np.object):
-            print("is_np_obj")
             return str(obj)
         else:
-            print("is_else")
             return obj.__dict__
 
 
@@ -58,3 +58,41 @@ def retrieve_matches():
     matches = pd.DataFrame(list(collection.find({}, {'_id': False})))
 
     return matches
+
+
+def q_find_match_by_id(match_id):
+    collection = get_matches_collection()
+    match_dict = collection.find_one({"match_id": match_id})
+    return pd.Series(match_dict) if match_dict else None
+
+
+def q_create_match(match):
+    collection = get_matches_collection()
+
+    # Convert series to dataframe
+    match_df = pd.DataFrame(match).T
+
+    # Insert new match
+    matches_json = get_matches_json(match_df)
+    result = collection.insert_many(matches_json)
+
+    return result.acknowledged
+
+
+def q_update_match(_id, match_dict):
+    collection = get_matches_collection()
+
+    result = collection.find_one_and_update(
+        {"_id": ObjectId(_id)},
+        {"$set": match_dict}
+    )
+
+    return result.modified_count == 1
+
+
+def q_delete_match(_id):
+    collection = get_matches_collection()
+
+    result = collection.delete_one({"_id": ObjectId(_id)})
+
+    return result.deleted_count == 1

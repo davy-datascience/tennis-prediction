@@ -26,3 +26,19 @@ def retrieve_players():
 
     players = pd.DataFrame(list(collection.find({}, {'_id': False})))
     return players
+
+
+def find_player_by_id(player_id):
+    collection = get_player_collection()
+    player_dict = collection.find_one({"flash_id": player_id})
+    return pd.Series(player_dict) if player_dict else None
+
+
+def q_create_player(player):
+    collection = get_player_collection()
+
+    # Insert new player
+    player_df = pd.DataFrame(player).T
+    player_dict = player_df.to_dict(orient='records')
+    result = collection.insert_many(player_dict)
+    return result.acknowledged

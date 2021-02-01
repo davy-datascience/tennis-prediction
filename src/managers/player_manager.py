@@ -5,6 +5,7 @@ from datetime import datetime
 
 from src.log import log
 from src.data_collection.scrap_players import scrap_player_id, scrap_player
+from src.queries.player_queries import find_player_by_id, q_create_player
 from src.utils import get_chrome_driver, get_mongo_client
 
 
@@ -96,20 +97,22 @@ def calculate_age(birth_date):
     return age
 
 
-def add_player_info(match, players):
+def add_player_info(match):
     """Add p1 and p2 attributes to a match series"""
-    p1 = get_player(match["p1_id"], players)
+    p1 = find_player_by_id(match["p1_id"])
     if p1 is None:
         p1 = scrap_new_player(match["p1_id"], match["p1_url"])
+        q_create_player(p1)
 
-    p2 = get_player(match["p2_id"], players)
+    p2 = find_player_by_id(match["p2_id"])
     if p2 is None:
         p2 = scrap_new_player(match["p2_id"], match["p2_url"])
+        q_create_player(p2)
 
     if p1 is None or p2 is None:
+        print("Couldn't find nor scrap players for  match '{0}'".format(match["match_id"]))
         return
 
-    match["p1_id"] = p1["flash_id"]
     match["p1_hand"] = p1["handedness"]
     match["p1_backhand"] = p1["backhand"]
     match["p1_ht"] = p1["height"]
@@ -118,8 +121,7 @@ def add_player_info(match, players):
     match["p1_rank"], match["p1_rank_points"] = retrieve_player_rank_info(p1["atp_id"])
     match["p1_birth_country"] = p1["birth_country"]
     match["p1_residence_country"] = p1["residence_country"]
-    
-    match["p2_id"] = p2["flash_id"]
+
     match["p2_hand"] = p2["handedness"]
     match["p2_backhand"] = p2["backhand"]
     match["p2_ht"] = p2["height"]

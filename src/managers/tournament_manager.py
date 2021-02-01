@@ -5,6 +5,7 @@ import re
 from datetime import datetime, timedelta
 
 from src.log import log
+from src.queries.tournament_queries import find_tournament_by_id, q_update_tournament, q_create_tournament
 from src.utils import get_chrome_driver, get_mongo_client
 
 
@@ -198,17 +199,11 @@ def scrap_tournament(tournament, date):
     return tournament
 
 
-def update_tournaments(tournaments, tournament):
-    '''Update tournaments dataframe with updated tournament series'''
-    indexes = tournaments.index[tournaments["flash_id"] == tournament["flash_id"]].tolist()
-    if len(indexes) > 0:
-        index = indexes[0]
-        for elem in tournaments.columns:
-            tournaments.at[index, elem] = tournament[elem]
+def update_tournament(tournament):
+    result = q_update_tournament(tournament["_id"], tournament.drop(labels=["_id"]).to_dict())
 
-    else:
-        # Create tournament
-        pass
+    if not result:
+        log("tournament_update", "tournament '{0}' couldn't be updated".format(tournament["flash_id"]))
 
 
 def get_tournament(tournament_id, tournaments):
@@ -216,9 +211,13 @@ def get_tournament(tournament_id, tournaments):
     return tournament.iloc[0] if len(tournament) > 0 else None
 
 
-def add_tournament_info(match, tournaments):
+def add_tournament_info(match):
     """Add tournament attributes to a match series"""
-    tour = get_tournament(match["tournament_id"], tournaments)
+    tour = find_tournament_by_id(match["tournament_id"])
+
+    if tour is None:
+        print("Couldn't find tournament '{0}' match '{1}'".format(match["tournament_id"], match["match_id"]))
+        return
 
     match["surface"] = tour["surface"]
     match["tour_date"] = tour["start_date"]
@@ -226,3 +225,9 @@ def add_tournament_info(match, tournaments):
     match["tourney_level"] = tour["tourney_level"]
     match["best_of"] = tour["best_of"]
     match["country"] = tour["country"]
+
+
+def create_tournament(tournament):
+    result = q_create_tournament(tournament)
+    if not result:
+        log("create_tournament", "couldn't create tournament '{0}'".format(tournament["flash_id"]))
