@@ -15,15 +15,28 @@ def search_all_tournaments_atptour():
     driver.get("https://www.atptour.com/en/tournaments")
     time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
     try:
+        atp_names = []
         atp_formatted_names = []
         atp_ids = []
         elements = driver.find_elements_by_xpath("//tr[@class='tourney-result']/td[2]/a")
 
         for elem in elements:
-            url = elem.get_attribute("href")
-            url_regex = re.search("/tournaments/(.*)/(.*)/overview$", url)
-            atp_formatted_names.append(url_regex.group(1))
-            atp_ids.append(int(url_regex.group(2)))
+            try:
+                url = elem.get_attribute("href")
+                url_regex = re.search("/tournaments/(.*)/(.*)/overview$", url)
+                atp_formatted_name = url_regex.group(1)
+                atp_id = int(url_regex.group(2))
+                atp_name = elem.text
+
+                atp_formatted_names.append(atp_formatted_name)
+                atp_ids.append(atp_id)
+                atp_names.append(atp_name)
+            except Exception as ex:
+                atp_formatted_names.append(None)
+                atp_ids.append(None)
+                atp_names.append(None)
+                print(type(ex).__name__)
+                print("atp tournaments retrieval error, tournament '{0}'".format(elem.text))
 
         cities = []
         countries = []
@@ -31,9 +44,18 @@ def search_all_tournaments_atptour():
 
         for elem in elements:
             location = elem.text
-            matched_location = location.split(", ")
-            cities.append(matched_location[0])
-            countries.append(matched_location[-1])
+            try:
+                matched_location = location.split(", ")
+                city = matched_location[0]
+                country = matched_location[-1]
+
+                cities.append(city)
+                countries.append(country)
+            except Exception as ex:
+                cities.append(None)
+                countries.append(None)
+                print(type(ex).__name__)
+                print("atp tournaments retrieval error, location '{0}'".format(location))
 
         start_dates = []
         end_dates = []
@@ -41,29 +63,48 @@ def search_all_tournaments_atptour():
 
         for elem in elements:
             date_elem = elem.text
-            date_regex = re.search("^(.*) - (.*)$", date_elem)
-            start_date = date_regex.group(1)
-            start_dates.append(datetime.strptime(start_date, '%Y.%m.%d'))
-            end_date_str = date_regex.group(2)
-            end_date = datetime.strptime(end_date_str, '%Y.%m.%d')
-            end_date += timedelta(days=1)
-            end_dates.append(end_date)
+            try:
+                date_regex = re.search("^(.*) - (.*)$", date_elem)
+                start_date_str = date_regex.group(1)
+                start_date = datetime.strptime(start_date_str, '%Y.%m.%d')
 
+                end_date_str = date_regex.group(2)
+                end_date = datetime.strptime(end_date_str, '%Y.%m.%d')
+                end_date += timedelta(days=1)
 
-        tournaments_atptour = pd.DataFrame({"atp_id": atp_ids, "atp_formatted_name": atp_formatted_names,
-                                            "city": cities, "country": countries,
-                                            "start_date": start_dates, "end_date": end_dates})
+                start_dates.append(start_date)
+                end_dates.append(end_date)
+            except Exception as ex:
+                start_dates.append(None)
+                end_dates.append(None)
+                print(type(ex).__name__)
+                print("atp tournaments retrieval error, date_elem: '{0}'".format(date_elem))
+
+        tournaments_atptour = pd.DataFrame({"atp_id": atp_ids, "atp_name": atp_names,
+                                            "atp_formatted_name": atp_formatted_names, "city": cities,
+                                            "country": countries, "start_date": start_dates, "end_date": end_dates})
 
     except Exception as ex:
         log("tournaments", "Tournament header retrieval error")
-        print("Tournament header retrieval error")
         print(ex)
+        print(type(ex).__name__)
 
     driver.quit()
     return tournaments_atptour
 
 
-def search_tournament_atptour(tournament, date):
+def get_tournament_name(flash_name):
+    """ Get tournament name from flashscore tournament name. Some tournaments name are between brackets
+    ex: 'Melbourne (Great Ocean Road Open)' -> 'Great Ocean Road Open' """
+
+    name_regex = re.search(r"\((.*)\)", flash_name)
+    if name_regex:
+        return name_regex.group(1)
+    else:
+        return flash_name
+
+
+def search_tournament_atptour(tournament, date_of_matches):
     flash_id = tournament["flash_id"]
 
     tournaments_atptour = search_all_tournaments_atptour()
@@ -72,7 +113,8 @@ def search_tournament_atptour(tournament, date):
     if "atp_id" in tournament.index and "atp_formatted_name" in tournament.index:
         atp_id = tournament["atp_id"]
         atp_formatted_name = tournament["atp_formatted_name"]
-        tour_matched = tournaments_atptour[(tournaments_atptour["atp_id"] == atp_id)&(tournaments_atptour["atp_formatted_name"] == atp_formatted_name)]
+        tour_matched = tournaments_atptour[(tournaments_atptour["atp_id"] == atp_id) & (
+                tournaments_atptour["atp_formatted_name"] == atp_formatted_name)]
 
         # Tournament has kept same references
         if len(tour_matched.index) == 1:
@@ -89,7 +131,8 @@ def search_tournament_atptour(tournament, date):
             return tournament
 
         # Tournament has new references (changed atp_id and atp_formatted_name)
-        tour_matched = tournaments_atptour[tournaments_atptour["city"] == tournament["flash_name"]]
+        tournament_name = get_tournament_name(tournament["flash_name"])
+        tour_matched = tournaments_atptour[tournaments_atptour["atp_name"] == tournament_name]
         if len(tour_matched.index) == 1:
             # New tournament kept same formatted_name but new atp_id
             new_atp_id = tour_matched.iloc[0]["atp_id"]
@@ -110,21 +153,28 @@ def search_tournament_atptour(tournament, date):
 
     # New tournament
     else:
-        name = tournament["flash_name"]
+        tournament_name = get_tournament_name(tournament["flash_name"])
         country = tournament["country"]
 
-        tour_matched = tournaments_atptour[(tournaments_atptour["start_date"] <= date)
-                                           &(tournaments_atptour["end_date"] >= date)
-                                           &((tournaments_atptour["city"] == name)
-                                             | tournaments_atptour["country"] == country)]
+        print("tour name: '{0}'\ncountry: '{1}'".format(tournament_name, country))
+
+        tour_matched = tournaments_atptour[tournaments_atptour["atp_name"] == tournament_name]
+
+        if len(tour_matched.index) != 1:
+            # Tournament not found by name. Try to find tournament by start date, end date and country
+            tour_matched = tournaments_atptour[(tournaments_atptour["start_date"] <= pd.Timestamp(date_of_matches))
+                                               & (tournaments_atptour["end_date"] >= pd.Timestamp(date_of_matches))
+                                               & (tournaments_atptour["country"] >= country)
+                                               ]
 
         # New tournament references found
         if len(tour_matched.index) == 1:
-            new_atp_id = tour_matched.iloc[0]["atp_id"]
-            new_formatted_name = tour_matched.iloc[0]["atp_formatted_name"]
+            tournament["atp_id"] = tour_matched.iloc[0]["atp_id"]
+            tournament["atp_formatted_name"] = tour_matched.iloc[0]["atp_formatted_name"]
 
-            log("tournament_created", "Tournament '{0}' created"
-                .format(flash_id))
+            '''log("tournament_created", "Tournament '{0}' created"
+                .format(flash_id))'''
+            return tournament
 
         # New tournament references not found
         else:
@@ -200,10 +250,13 @@ def scrap_tournament(tournament, date):
 
 
 def update_tournament(tournament):
-    result = q_update_tournament(tournament["_id"], tournament.drop(labels=["_id"]).to_dict())
-
-    if not result:
-        log("tournament_update", "tournament '{0}' couldn't be updated".format(tournament["flash_id"]))
+    try:
+        q_update_tournament(tournament["_id"], tournament.drop(labels=["_id"]).to_dict())
+        # TODO Delete next print
+        print("tournament '{0}' has been updated".format(tournament["_id"]))
+    except Exception as ex:
+        log("tournament_update", "tournament '{0}' couldn't be updated".format(tournament["flash_id"])
+            , type(ex).__name__)
 
 
 def get_tournament(tournament_id, tournaments):
@@ -228,6 +281,9 @@ def add_tournament_info(match):
 
 
 def create_tournament(tournament):
-    result = q_create_tournament(tournament)
+    result = q_create_tournament(tournament.to_dict())
     if not result:
         log("create_tournament", "couldn't create tournament '{0}'".format(tournament["flash_id"]))
+    # TODO Delete else
+    else:
+        print("tournament '{0}' has been created".format(tournament["flash_id"]))

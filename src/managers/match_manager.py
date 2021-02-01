@@ -12,7 +12,7 @@ import pandas as pd
 from src.classes.match_status import MatchStatus
 from src.managers.player_manager import add_player_info
 from src.managers.tournament_manager import scrap_tournament, add_tournament_info, update_tournament, create_tournament
-from src.queries.match_queries import find_match_by_id, q_update_match, q_create_match, q_delete_match
+from src.queries.match_queries import q_find_match_by_id, q_update_match, q_create_match, q_delete_match
 from src.queries.tournament_queries import find_tournament_by_name
 from src.utils import element_has_class, get_chrome_driver, get_mongo_client
 
@@ -57,11 +57,11 @@ def get_match_ordered_attributes():
             'p1_bp_saved_ratio', 'p2_bp_saved_ratio', 'p1_wins', 'prediction', 'prediction_version']
 
 
-def find_by_class(class_name, driver):
+'''def find_by_class(class_name, driver):
     try:
         return driver.find_element_by_class_name(class_name).text
     except NoSuchElementException:
-        pass
+        return None'''
 
 
 def find_by_xpath(xpath, driver):
@@ -72,9 +72,20 @@ def find_by_xpath(xpath, driver):
 
 
 def find_gms_value(player, set_nb, driver):
-    suffix = "home" if player == 1 else "away"
-    games = find_by_class("p{0}_{1}".format(set_nb, suffix), driver)
-    return int(games) if games else None
+    gms_value = None
+    tb_score = None
+
+    suffix = "home___" if player == 1 else "away___"
+    elements = driver.find_elements_by_xpath("//div[contains(@class, 'part--{0}') and contains(@class, '{1}')]"
+                                             .format(set_nb, suffix))
+    for elem in elements:
+        if element_has_class(elem, "part--{0}".format(set_nb)) and elem.text != "":
+            gms_value = int(elem.text)
+            if elem.find_element_by_xpath("sup").text != "":
+                tb_score = int(elem.find_element_by_xpath("sup").text)
+            break
+
+    return gms_value, tb_score
 
 
 def find_tb_score(player, set_nb, driver):
@@ -84,15 +95,15 @@ def find_tb_score(player, set_nb, driver):
 
 
 def scrap_player_ids(driver):
-    p1_elem = driver.find_element_by_xpath("//div[@class='team-text tname-home']/div/div/a") \
-        .get_attribute("onclick")
-    p1_regex = re.search("/player/(.+)/(.+)\'", p1_elem)
+    p1_elem = driver.find_element_by_xpath("//div[@id='detail']/div[4]/div[1]/div[4]/div[2]/a") \
+        .get_attribute("href")
+    p1_regex = re.search("/player/(.+)/(.+)$", p1_elem)
     p1_url = p1_regex.group(1)
     p1_id = p1_regex.group(2)
 
-    p2_elem = driver.find_element_by_xpath("//div[@class='team-text tname-away']/div/div/a") \
-        .get_attribute("onclick")
-    p2_regex = re.search("/player/(.+)/(.+)\'", p2_elem)
+    p2_elem = driver.find_element_by_xpath("//div[@id='detail']/div[4]/div[3]/div[4]/div[1]/a") \
+        .get_attribute("href")
+    p2_regex = re.search("/player/(.+)/(.+)$", p2_elem)
     p2_url = p2_regex.group(1)
     p2_id = p2_regex.group(2)
 
@@ -109,18 +120,23 @@ def scrap_match_flashscore(match_id, status):
         driver.get(match_url)
         time.sleep(1)
 
-        tournament_elem = driver.find_element_by_xpath("//span[@class='description__country']/a") \
-            .get_attribute("onclick")
-        tournament_regex = re.search("atp-singles/(.*)/", tournament_elem)
+        tournament_elem = driver.find_element_by_xpath(
+            "//div[contains(@class, 'tournamentHeaderDescription')]/div[1]/span[2]/a"
+        )
+
+        tournament_regex = re.search("atp-singles/(.*)/", tournament_elem.get_attribute("href"))
         match["tournament_id"] = tournament_regex.group(1)
         add_tournament_info(match)
+
+        round_regex = re.search(",.*- (.*)$", tournament_elem.text)
+        match["round"] = round_regex.group(1)
 
         match["p1_id"], match["p1_url"], match["p2_id"], match["p2_url"] = scrap_player_ids(driver)
         add_player_info(match)
 
         match_date = None
         try:
-            match_date_elem = driver.find_element_by_id("utime").text
+            match_date_elem = driver.find_element_by_xpath("//div[@id='detail']/div[3]/div[2]").text
             match_date_regex = re.search(r"^([0-9]+)\.([0-9]+)\.([0-9]+) ([0-9]+):([0-9]+)$", match_date_elem)
             day = int(match_date_regex.group(1))
             month = int(match_date_regex.group(2))
@@ -139,60 +155,48 @@ def scrap_match_flashscore(match_id, status):
 
         match["datetime"] = match_date
 
-        description = driver.find_element_by_xpath("//span[@class='description__country']/a").text
-        round_regex = re.search(",.*- (.*)$", description)
-        match["round"] = round_regex.group(1)
-
         match["status"] = status.name
 
         if status in [MatchStatus.Finished, MatchStatus.Retired]:
-            if len(driver.find_elements_by_xpath("//table[@id='parts']/tbody/tr[2]/td[2]/strong")) == 1:
+            participant_elems = driver.find_elements_by_xpath("//a[starts-with(@class, 'participantName___')]")
+
+            if len(participant_elems) != 4:
+                print("Couldn't find the winner")
+                return None
+
+            if len(participant_elems[2].find_elements_by_xpath("strong")) == 1:
                 match["p1_wins"] = True
-            elif len(driver.find_elements_by_xpath("//table[@id='parts']/tbody/tr[3]/td[2]/strong")) == 1:
+            elif len(participant_elems[3].find_elements_by_xpath("strong")) == 1:
                 match["p1_wins"] = False
 
-            duration_elem = driver.find_element_by_xpath("//tr[1]/td[@class='score'][1]").text
+            duration_elem = driver.find_element_by_xpath("//div[contains(@class, 'time--overall')]").text
             duration_regex = re.search("([0-9]+):([0-9]+)", duration_elem)
             match["minutes"] = int(duration_regex.group(1)) * 60 + int(duration_regex.group(2))
 
-            match["p1_s1_gms"] = find_gms_value(1, 1, driver)
-            match["p1_s2_gms"] = find_gms_value(1, 2, driver)
-            match["p1_s3_gms"] = find_gms_value(1, 3, driver)
-            match["p1_s4_gms"] = find_gms_value(1, 4, driver)
-            match["p1_s5_gms"] = find_gms_value(1, 5, driver)
+            match["p1_s1_gms"], match["p1_tb1_score"] = find_gms_value(1, 1, driver)
+            match["p1_s2_gms"], match["p1_tb2_score"] = find_gms_value(1, 2, driver)
+            match["p1_s3_gms"], match["p1_tb3_score"] = find_gms_value(1, 3, driver)
+            match["p1_s4_gms"], match["p1_tb4_score"] = find_gms_value(1, 4, driver)
+            match["p1_s5_gms"], match["p1_tb5_score"] = find_gms_value(1, 5, driver)
 
-            match["p1_tb1_score"] = find_tb_score(1, 1, driver)
-            match["p1_tb2_score"] = find_tb_score(1, 2, driver)
-            match["p1_tb3_score"] = find_tb_score(1, 3, driver)
-            match["p1_tb4_score"] = find_tb_score(1, 4, driver)
-            match["p1_tb5_score"] = find_tb_score(1, 5, driver)
+            match["p2_s1_gms"], match["p2_tb1_score"] = find_gms_value(2, 1, driver)
+            match["p2_s2_gms"], match["p2_tb2_score"] = find_gms_value(2, 2, driver)
+            match["p2_s3_gms"], match["p2_tb3_score"] = find_gms_value(2, 3, driver)
+            match["p2_s4_gms"], match["p2_tb4_score"] = find_gms_value(2, 4, driver)
+            match["p2_s5_gms"], match["p2_tb5_score"] = find_gms_value(2, 5, driver)
 
-            match["p2_s1_gms"] = find_gms_value(2, 1, driver)
-            match["p2_s2_gms"] = find_gms_value(2, 2, driver)
-            match["p2_s3_gms"] = find_gms_value(2, 3, driver)
-            match["p2_s4_gms"] = find_gms_value(2, 4, driver)
-            match["p2_s5_gms"] = find_gms_value(2, 5, driver)
-
-            match["p2_tb1_score"] = find_tb_score(2, 1, driver)
-            match["p2_tb2_score"] = find_tb_score(2, 2, driver)
-            match["p2_tb3_score"] = find_tb_score(2, 3, driver)
-            match["p2_tb4_score"] = find_tb_score(2, 4, driver)
-            match["p2_tb5_score"] = find_tb_score(2, 5, driver)
-
-            driver.find_element_by_id("a-match-statistics").click()
+            driver.find_element_by_link_text("Statistics").click()
             time.sleep(0.5)
 
-            stat_elem = driver.find_element_by_id("tab-statistics-0-statistic")
-            row_elements = stat_elem.find_elements_by_class_name("statRow")
+            row_elements = driver.find_elements_by_xpath("//div[starts-with(@class, 'statRow___')]") # stat_elem.find_elements_by_class_name("statRow")
 
             stat_labels = []
             p1_stats = []
             p2_stats = []
             for row_elem in row_elements:
-                stat_label = row_elem.find_element_by_class_name("statText--titleValue").text
-                stat_labels.append(stat_label)
-                p1_stats.append(row_elem.find_element_by_class_name("statText--homeValue").text)
-                p2_stats.append(row_elem.find_element_by_class_name("statText--awayValue").text)
+                stat_labels.append(row_elem.find_element_by_xpath("div[1]/div[2]").text)
+                p1_stats.append(row_elem.find_element_by_xpath("div[1]/div[1]").text)
+                p2_stats.append(row_elem.find_element_by_xpath("div[1]/div[3]").text)
 
             stats_dataframe = pd.DataFrame({"label": stat_labels, "p1": p1_stats, "p2": p2_stats})
 
@@ -275,21 +279,29 @@ def scrap_match_flashscore(match_id, status):
 
 
 def create_match(match):
-    return q_create_match(match)
-
-
-def update_match(match):
-    result = q_update_match(match["_id"], match.drop(labels=["_id"]).to_dict())
+    result = q_create_match(match.to_dict())
 
     if not result:
         log("match_update", "match '{0}' couldn't be updated".format(match["match_id"]))
+    # TODO Delete else
+    else:
+        print("match '{0}' has been created".format(match["match_id"]))
+
+
+def update_match(match):
+    try:
+        q_update_match(match["_id"], match.drop(labels=["_id"]).to_dict())
+        # TODO Delete next print
+        print("match '{0}' has been updated".format(match["_id"]))
+    except Exception as ex:
+        log("match_update", "match '{0}' couldn't be updated".format(match["match_id"]), type(ex).__name__)
 
 
 def delete_match(_id):
     result = q_delete_match(_id)
 
     if not result:
-        log("match_delete", "match '{0}' couldn't be updated".format(_id))
+        log("match_delete", "match '{0}' not deleted".format(_id))
 
 
 def scrap_matches(driver, matches_date):
@@ -298,9 +310,9 @@ def scrap_matches(driver, matches_date):
     match_url = "https://www.flashscore.com/tennis"
     driver.get(match_url)
     # time.sleep(1)
-    datepick = driver.find_element_by_class_name('calendar__datepicker')
+    '''datepick = driver.find_element_by_class_name('calendar__datepicker')
     datepickdate = driver.find_element_by_xpath("//div[@class='calendar__datepicker--dates']/div[2]")
-    yesterday = driver.find_element_by_class_name('calendar__nav')
+    yesterday = driver.find_element_by_class_name('calendar__nav')'''
     # yesterday.click()
     # TODO delete prev lines
 
@@ -324,8 +336,9 @@ def scrap_matches(driver, matches_date):
                 tournament = None
                 continue
 
-            tournament_name_regex = re.search(r"^(.*) \(", name)
+            tournament_name_regex = re.search(r"^(.*) \((.*)\)", name)
             tournament_name = tournament_name_regex.group(1)
+            tournament_country = tournament_name_regex.group(2)
             tournament_found = find_tournament_by_name(tournament_name)
 
             if tournament_found:
@@ -344,7 +357,7 @@ def scrap_matches(driver, matches_date):
                 # New tournament to be scrapped
 
                 # Find flash_id in "current tournaments" section
-                el = driver.find_element_by_xpath("//li[@id='lmenu_5724']/a")
+                el = driver.find_element_by_xpath("//li[@id='lmenu_5724']")
                 if not element_has_class(el, "active"):
                     driver.execute_script("arguments[0].click();", el.find_element_by_xpath("a"))
                     time.sleep(1)
@@ -371,11 +384,16 @@ def scrap_matches(driver, matches_date):
 
                 tournament_id = tournament_matched.iloc[0]["flash_id"]
 
-                print("Creating tournament {0}".format(tournament["flash_id"]))
+                print("Creating tournament {0}".format(tournament_id))
 
-                tournament_scrapped = scrap_tournament(pd.Series({"flash_id": tournament_id}), matches_date)
+                tournament_scrapped = scrap_tournament(pd.Series(
+                    {"flash_id": tournament_id,
+                     "flash_name": tournament_name,
+                     "country": tournament_country
+                     }
+                ), matches_date)
 
-                if tournament_scrapped:
+                if tournament_scrapped is not None:
                     create_tournament(tournament_scrapped)
                     tournament = tournament_scrapped
 
@@ -414,7 +432,7 @@ def scrap_matches(driver, matches_date):
                 print("Status not found for match '{0}'".format(match_id))
                 continue
 
-            match_found = find_match_by_id(match_id)
+            match_found = q_find_match_by_id(match_id)
 
             if match_found:
                 # Match exists

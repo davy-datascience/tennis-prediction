@@ -97,17 +97,23 @@ def calculate_age(birth_date):
     return age
 
 
+def create_player(player):
+    inserted_id = q_create_player(player)
+
+    log("player_created", inserted_id)
+
+
 def add_player_info(match):
     """Add p1 and p2 attributes to a match series"""
     p1 = find_player_by_id(match["p1_id"])
     if p1 is None:
         p1 = scrap_new_player(match["p1_id"], match["p1_url"])
-        q_create_player(p1)
+        create_player(p1)
 
     p2 = find_player_by_id(match["p2_id"])
     if p2 is None:
         p2 = scrap_new_player(match["p2_id"], match["p2_url"])
-        q_create_player(p2)
+        create_player(p2)
 
     if p1 is None or p2 is None:
         print("Couldn't find nor scrap players for  match '{0}'".format(match["match_id"]))

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pandas as pd
 
 from src.utils import get_mongo_client
@@ -37,8 +39,9 @@ def find_player_by_id(player_id):
 def q_create_player(player):
     collection = get_player_collection()
 
-    # Insert new player
-    player_df = pd.DataFrame(player).T
-    player_dict = player_df.to_dict(orient='records')
-    result = collection.insert_many(player_dict)
-    return result.acknowledged
+    # Add created datetime
+    player["created"] = datetime.utcnow()
+
+    result = collection.insert_one(player)
+
+    return result.inserted_id

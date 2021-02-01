@@ -45,6 +45,9 @@ def record_matches(matches):
     # Remove previous matches
     collection.remove()
 
+    # Add created datetime
+    matches["created"] = datetime.utcnow()
+
     # Insert new matches
     matches_json = get_matches_json(matches)
     result = collection.insert_many(matches_json)
@@ -69,25 +72,24 @@ def q_find_match_by_id(match_id):
 def q_create_match(match):
     collection = get_matches_collection()
 
-    # Convert series to dataframe
-    match_df = pd.DataFrame(match).T
+    # Add created datetime
+    match["created"] = datetime.utcnow()
 
-    # Insert new match
-    matches_json = get_matches_json(match_df)
-    result = collection.insert_many(matches_json)
+    result = collection.insert_one(match)
 
     return result.acknowledged
 
 
-def q_update_match(_id, match_dict):
+def q_update_match(_id, match):
     collection = get_matches_collection()
 
-    result = collection.find_one_and_update(
-        {"_id": ObjectId(_id)},
-        {"$set": match_dict}
-    )
+    # Add updated datetime
+    match["updated"] = datetime.utcnow()
 
-    return result.modified_count == 1
+    collection.find_one_and_update(
+        {"_id": ObjectId(_id)},
+        {"$set": match}
+    )
 
 
 def q_delete_match(_id):

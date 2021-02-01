@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pandas as pd
 from bson import ObjectId
 
@@ -41,22 +43,24 @@ def find_tournament_by_id(tour_id):
     return pd.Series(tournament_dict) if tournament_dict else None
 
 
-def q_update_tournament(_id, tournament_dict):
+def q_update_tournament(_id, tournament):
     collection = get_tournament_collection()
 
-    result = collection.find_one_and_update(
-        {"_id": ObjectId(_id)},
-        {"$set": tournament_dict}
-    )
+    # Add updated datetime
+    tournament["updated"] = datetime.utcnow()
 
-    return result.modified_count == 1
+    collection.find_one_and_update(
+        {"_id": ObjectId(_id)},
+        {"$set": tournament}
+    )
 
 
 def q_create_tournament(tournament):
     collection = get_tournament_collection()
 
-    # Insert new tournament
-    tournament_df = pd.DataFrame(tournament).T
-    tournament_dict = tournament_df.to_dict(orient='records')
-    result = collection.insert_many(tournament_dict)
+    # Add created datetime
+    tournament["created"] = datetime.utcnow()
+
+    result = collection.insert_one(tournament)
+
     return result.acknowledged
