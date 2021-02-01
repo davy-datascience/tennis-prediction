@@ -17,6 +17,9 @@ def record_players(players):
     # Remove previous players
     collection.remove()
 
+    # Add created datetime
+    players["created"] = datetime.utcnow()
+
     # Insert new players
     records = players.to_dict(orient='records')
     result = collection.insert_many(records)

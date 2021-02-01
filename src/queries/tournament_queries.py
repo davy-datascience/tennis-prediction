@@ -18,6 +18,9 @@ def record_tournaments(tournaments):
     # Remove previous tournaments
     collection.remove()
 
+    # Add created datetime
+    tournaments["created"] = datetime.utcnow()
+
     # Insert new tournaments
     records = tournaments.to_dict(orient='records')
     result = collection.insert_many(records)
