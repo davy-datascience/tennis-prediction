@@ -16,9 +16,18 @@ def scrap_player_id(player_name):
     driver.get(match_url)
     time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
     try:
-        element = driver.find_element_by_xpath("//table[@class='player-results-table']/tbody/tr[1]/td[4]/a")
-        atptour_name = element.text
-        href = element.get_attribute("href")
+        elements = driver.find_elements_by_xpath("//table[@class='player-results-table']/tbody/tr/td[4]/a")
+        player_element = None
+        for element in elements:
+            if str.lower(element.text) == str.lower(player_name):
+                player_element = element
+                break
+
+        if player_element is None:
+            player_element = elements[0]
+
+        atptour_name = player_element.text
+        href = player_element.get_attribute("href")
         href_regex = re.search(".+/(.*)/overview$", href)
         atptour_id = href_regex.group(1)
 
