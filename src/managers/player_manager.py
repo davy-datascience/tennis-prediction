@@ -98,7 +98,7 @@ def calculate_age(birth_date):
 
 
 def create_player(player):
-    inserted_id = q_create_player(player)
+    inserted_id = q_create_player(player.to_dict())
 
     log("player_created", inserted_id)
 

@@ -1,13 +1,10 @@
-from pytz import timezone
-from selenium.common.exceptions import NoSuchElementException
+import pandas as pd
 import re
 import time
+from pytz import timezone
+from selenium.common.exceptions import NoSuchElementException
 from datetime import datetime
-
-from selenium.webdriver.common.keys import Keys
-
 from src.log import log
-import pandas as pd
 
 from src.classes.match_status import MatchStatus
 from src.managers.player_manager import add_player_info
@@ -71,6 +68,29 @@ def find_by_xpath(xpath, driver):
         pass
 
 
+def get_text_excluding_children(driver, element):
+
+    return driver.execute_script("""
+
+    var parent = arguments[0];
+
+    var child = parent.firstChild; 
+
+    var ret = ""; while(child) { 
+
+          if(child.nodeType === Node.TEXT_NODE) 
+
+             ret += child.textContent;
+
+             child = child.nextSibling; 
+
+    } 
+
+    return ret;
+
+     """, element)
+
+
 def find_gms_value(player, set_nb, driver):
     gms_value = None
     tb_score = None
@@ -80,7 +100,7 @@ def find_gms_value(player, set_nb, driver):
                                              .format(set_nb, suffix))
     for elem in elements:
         if element_has_class(elem, "part--{0}".format(set_nb)) and elem.text != "":
-            gms_value = int(elem.text)
+            gms_value = int(get_text_excluding_children(driver, elem))
             if elem.find_element_by_xpath("sup").text != "":
                 tb_score = int(elem.find_element_by_xpath("sup").text)
             break
@@ -160,14 +180,10 @@ def scrap_match_flashscore(match_id, status):
         if status in [MatchStatus.Finished, MatchStatus.Retired]:
             participant_elems = driver.find_elements_by_xpath("//a[starts-with(@class, 'participantName___')]")
 
-            if len(participant_elems) != 4:
-                print("Couldn't find the winner")
-                return None
-
-            if len(participant_elems[2].find_elements_by_xpath("strong")) == 1:
-                match["p1_wins"] = True
-            elif len(participant_elems[3].find_elements_by_xpath("strong")) == 1:
+            if len(participant_elems[-1].find_elements_by_xpath("strong")) == 1:
                 match["p1_wins"] = False
+            else:
+                match["p1_wins"] = True
 
             duration_elem = driver.find_element_by_xpath("//div[contains(@class, 'time--overall')]").text
             duration_regex = re.search("([0-9]+):([0-9]+)", duration_elem)
