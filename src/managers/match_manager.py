@@ -156,6 +156,7 @@ def scrap_match_flashscore(match_id, status):
 
         match["p1_id"], match["p1_url"], match["p2_id"], match["p2_url"] = scrap_player_ids(driver)
         add_player_info(match)
+        match.drop(columns=["p1_url", "p2_url"], inplace=True)
 
         match_date = None
         try:
@@ -305,7 +306,7 @@ def create_match(match):
     result = q_create_match(match.to_dict())
 
     if result is None:
-        log("match_update", "match '{0}' couldn't be updated".format(match["match_id"]))
+        log("match_create", "match '{0}' couldn't be created".format(match["match_id"]))
     # TODO Delete else
     else:
         print("match '{0}' has been created".format(match["match_id"]))
@@ -314,7 +315,9 @@ def create_match(match):
 def update_match(match):
     if match["status"] == MatchStatus.Finished.name:
         # When match is finished, record match with ordered attributes
-        match = match[get_match_ordered_attributes()]
+        ordered_attributes = get_match_ordered_attributes()
+        ordered_attributes.append("_id")
+        match = match[ordered_attributes]
 
     try:
         q_update_match(match["_id"], match.drop(labels=["_id"]).to_dict())
