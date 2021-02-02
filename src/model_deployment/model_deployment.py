@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import eli5 # FUTUREWARNING
@@ -11,8 +13,8 @@ from sklearn.preprocessing import OneHotEncoder
 from eli5.sklearn import PermutationImportance
 from sklearn.ensemble import RandomForestClassifier
 
-from src.data_collection.data_preparation import inverse_half_dataset
-from src.managers.match_manager import retrieve_matches
+from src.data_collection.data_preparation import inverse_half_dataset, inverse_dataset
+from src.queries.match_queries import retrieve_matches
 from src.model_deployment.feature_engineering import *
 from src.utils import get_mongo_client
 
@@ -28,13 +30,15 @@ def main():
 
     matches = retrieve_matches()
 
-    add_features(matches)
+    #add_features(matches)
 
     # matches = matches.replace({np.nan: None})
 
-    matches = pd.read_pickle("./matches.pkl")
+    matches_part = matches.iloc[500:505].copy()
 
-    matches = inverse_half_dataset(matches)
+    matches_part["time_since_last_match_p1"], matches_part["time_played_14_days_p1"], \
+        matches_part["time_played_30_days_p1"] = zip(*matches_part.apply(add_features, args=(matches,), axis=1))
+
 
     matches = matches[get_categorical_cols() + get_numerical_cols() + ["p1_wins"]]
 

@@ -1,9 +1,11 @@
 import numpy as np
+import pandas as pd
 
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import _VectorizerMixin
 from sklearn.feature_selection import SelectorMixin
 
+from src.data_collection.data_preparation import inverse_dataset
 from src.utils import *
 
 
@@ -26,9 +28,28 @@ def add_elaborated_features(matches):
     pass
 
 
-def add_features(matches):
-    add_simple_features(matches)
-    add_elaborated_features(matches)
+def add_features(match, matches):
+    previous_wins_p1 = matches[(matches["p1_id"] == match["p1_id"]) & (matches["datetime"] < match["datetime"])]
+    previous_lost_p1 = matches[(matches["p2_id"] == match["p2_id"]) & (matches["datetime"] < match["datetime"])]
+    previous_p1 = pd.concat([previous_wins_p1, inverse_dataset(previous_lost_p1)]).sort_index()
+
+    if len(previous_p1.index) > 0:
+        time_since_last_match_p1 = (match["datetime"] - previous_p1.iloc[-1]["datetime"]).seconds
+
+        matches_last_14_days = \
+            previous_p1[previous_p1["datetime"] > match["datetime"] - pd.to_timedelta(14.5, unit='d')]
+
+        time_played_14_days_p1 = matches_last_14_days["minutes"].sum()
+
+        matches_last_30_days = \
+            previous_p1[previous_p1["datetime"] > match["datetime"] - pd.to_timedelta(30.5, unit='d')]
+
+        time_played_30_days_p1 = matches_last_30_days["minutes"].sum()
+
+        return time_since_last_match_p1, time_played_14_days_p1, time_played_30_days_p1
+
+    #add_simple_features(matches)
+    #add_elaborated_features(matches)
 
 
 def get_categorical_cols():
