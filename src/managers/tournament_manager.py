@@ -13,7 +13,7 @@ def search_all_tournaments_atptour():
     tournaments_atptour = None
     driver = get_chrome_driver()
     driver.get("https://www.atptour.com/en/tournaments")
-    time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
+    time.sleep(3)
     try:
         atp_names = []
         atp_formatted_names = []
@@ -156,8 +156,6 @@ def search_tournament_atptour(tournament, date_of_matches):
         tournament_name = get_tournament_name(tournament["flash_name"])
         country = tournament["country"]
 
-        print("tour name: '{0}'\ncountry: '{1}'".format(tournament_name, country))
-
         tour_matched = tournaments_atptour[tournaments_atptour["atp_name"] == tournament_name]
 
         if len(tour_matched.index) != 1:
@@ -282,7 +280,7 @@ def add_tournament_info(match):
 
 def create_tournament(tournament):
     result = q_create_tournament(tournament.to_dict())
-    if not result:
+    if result is None:
         log("create_tournament", "couldn't create tournament '{0}'".format(tournament["flash_id"]))
     # TODO Delete else
     else:

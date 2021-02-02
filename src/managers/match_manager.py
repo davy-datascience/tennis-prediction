@@ -149,7 +149,10 @@ def scrap_match_flashscore(match_id, status):
         add_tournament_info(match)
 
         round_regex = re.search(",.*- (.*)$", tournament_elem.text)
-        match["round"] = round_regex.group(1)
+        if round_regex:
+            match["round"] = round_regex.group(1)
+        else:
+            match["round"] = "Group"
 
         match["p1_id"], match["p1_url"], match["p2_id"], match["p2_url"] = scrap_player_ids(driver)
         add_player_info(match)
@@ -301,7 +304,7 @@ def create_match(match):
 
     result = q_create_match(match.to_dict())
 
-    if not result:
+    if result is None:
         log("match_update", "match '{0}' couldn't be updated".format(match["match_id"]))
     # TODO Delete else
     else:
@@ -324,7 +327,7 @@ def update_match(match):
 def delete_match(_id):
     result = q_delete_match(_id)
 
-    if not result:
+    if result is None:
         log("match_delete", "match '{0}' not deleted".format(_id))
 
 
@@ -365,7 +368,7 @@ def scrap_matches(driver, matches_date):
             tournament_country = tournament_name_regex.group(2)
             tournament_found = find_tournament_by_name(tournament_name)
 
-            if tournament_found:
+            if tournament_found is not None:
                 # Tournament exists
                 if tournament_found["start_date"].year != datetime.now().year:
                     # Tournament to be updated
@@ -433,12 +436,12 @@ def scrap_matches(driver, matches_date):
 
             match_status = None
             if element_has_class(elem, "event__match--live"):
-                match_status = MatchStatus.LIVE
+                match_status = MatchStatus.Live
             else:
                 try:
                     elem.find_element_by_class_name("event__time")
                     # Match is scheduled
-                    match_status = MatchStatus.SCHEDULED
+                    match_status = MatchStatus.Scheduled
                 except NoSuchElementException:
                     # Match is not scheduled
                     pass
@@ -449,8 +452,10 @@ def scrap_matches(driver, matches_date):
                     match_status = MatchStatus.Finished
                 elif status_str == "Finished\n(retired)":
                     match_status = MatchStatus.Retired
-                elif status_str == "Walkover)":
+                elif status_str == "Walkover":
                     match_status = MatchStatus.Walkover
+                elif status_str == "Cancelled":
+                    match_status = MatchStatus.Cancelled
 
             if match_status is None:
                 print("Status not found for match '{0}'".format(match_id))
@@ -458,7 +463,7 @@ def scrap_matches(driver, matches_date):
 
             match_found = q_find_match_by_id(match_id)
 
-            if match_found:
+            if match_found is not None:
                 # Match exists
                 if MatchStatus[match_found["status"]] not in [MatchStatus.Finished, MatchStatus.Retired]:
                     # Match is not recorded as 'finished'
@@ -496,7 +501,7 @@ def scrap_matches(driver, matches_date):
                     # Scrap match preview
                     match = scrap_match_flashscore(match_id, match_status)
 
-                    if not match:
+                    if match is None:
                         log("scrap_new_match", "Couldn't scrap match '{0}'".format(match_id))
                         continue
 

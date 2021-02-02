@@ -7,3 +7,4 @@ class MatchStatus(Enum):
     Live = 3
     Retired = 4
     Walkover = 5
+    Cancelled = 6
