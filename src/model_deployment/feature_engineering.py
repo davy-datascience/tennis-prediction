@@ -20,36 +20,98 @@ def add_simple_features(matches):
     matches["p2_df_quotient"] = divide_with_numba(matches["p2_df"].to_numpy(), matches["p2_svpt"].to_numpy())
 
     # Break points Faced per service-game
-    matches["p1_bp_faced_quotient"] = divide_with_numba(matches["p1_bp_faced"].to_numpy(), matches["p1_sv_gms"].to_numpy())
-    matches["p2_bp_faced_quotient"] = divide_with_numba(matches["p2_bp_faced"].to_numpy(), matches["p2_sv_gms"].to_numpy())
+    matches["p1_bp_faced_quotient"] = divide_with_numba(matches["p1_bp_faced"].to_numpy(),
+                                                        matches["p1_sv_gms"].to_numpy())
+    matches["p2_bp_faced_quotient"] = divide_with_numba(matches["p2_bp_faced"].to_numpy(),
+                                                        matches["p2_sv_gms"].to_numpy())
 
 
 def add_elaborated_features(matches):
     pass
 
 
+def get_player_previous_matches(p_id, match_dt, matches):
+    previous_wins = matches[(matches["p1_id"] == p_id) & (matches["datetime"] < match_dt)]
+    previous_lost = matches[(matches["p2_id"] == p_id) & (matches["datetime"] < match_dt)]
+    previous_matches = pd.concat([previous_wins, inverse_dataset(previous_lost)]).sort_values(
+        by=["datetime"])  # .sort_index()
+    return previous_matches
+
+
+def get_time_played_last_x_days(nb_days, match_dt, prev_matches):
+    matches_last_x_days = prev_matches[prev_matches["datetime"] > match_dt - pd.to_timedelta(nb_days + 0.5, unit='d')]
+    return matches_last_x_days["minutes"].sum()
+
+
+def get_player_win_ratio(prev_matches, is_all_time):
+    player_win_ratio = None
+    player_total_played = len(prev_matches.index)
+    if player_total_played > 0:
+        player_total_wins = len(prev_matches[prev_matches["p1_wins"] == 1].index)
+        if not (is_all_time and (player_total_wins == player_total_played and player_total_played < 10)):
+            player_win_ratio = player_total_wins / player_total_played
+
+    return player_win_ratio
+
+
+def get_player_win_ratio_last_x(nb_matches, prev_matches):
+    player_win_ratio_last_x = None
+    prev_matches_size = len(prev_matches.index)
+    if prev_matches_size > 0:
+        player_win_ratio_last_x = get_player_win_ratio(prev_matches[-nb_matches:] if prev_matches_size >= 5
+                                                       else prev_matches[-prev_matches_size:], False)
+    return player_win_ratio_last_x
+
+
 def add_features(match, matches):
-    previous_wins_p1 = matches[(matches["p1_id"] == match["p1_id"]) & (matches["datetime"] < match["datetime"])]
-    previous_lost_p1 = matches[(matches["p2_id"] == match["p2_id"]) & (matches["datetime"] < match["datetime"])]
-    previous_p1 = pd.concat([previous_wins_p1, inverse_dataset(previous_lost_p1)]).sort_index()
+    previous_p1 = get_player_previous_matches(match["p1_id"], match["datetime"], matches)
+    previous_p2 = get_player_previous_matches(match["p2_id"], match["datetime"], matches)
 
-    if len(previous_p1.index) > 0:
-        time_since_last_match_p1 = (match["datetime"] - previous_p1.iloc[-1]["datetime"]).seconds
+    time_since_last_match_p1 = (match["datetime"] - previous_p1.iloc[-1]["datetime"]).seconds
 
-        matches_last_14_days = \
-            previous_p1[previous_p1["datetime"] > match["datetime"] - pd.to_timedelta(14.5, unit='d')]
+    time_played_2_days_p1 = get_time_played_last_x_days(2, match["datetime"], previous_p1)
+    time_played_7_days_p1 = get_time_played_last_x_days(7, match["datetime"], previous_p1)
+    time_played_14_days_p1 = get_time_played_last_x_days(14, match["datetime"], previous_p1)
+    time_played_30_days_p1 = get_time_played_last_x_days(30, match["datetime"], previous_p1)
 
-        time_played_14_days_p1 = matches_last_14_days["minutes"].sum()
+    time_played_2_days_p2 = get_time_played_last_x_days(2, match["datetime"], previous_p2)
+    time_played_7_days_p2 = get_time_played_last_x_days(7, match["datetime"], previous_p2)
+    time_played_14_days_p2 = get_time_played_last_x_days(14, match["datetime"], previous_p2)
+    time_played_30_days_p2 = get_time_played_last_x_days(30, match["datetime"], previous_p2)
 
-        matches_last_30_days = \
-            previous_p1[previous_p1["datetime"] > match["datetime"] - pd.to_timedelta(30.5, unit='d')]
+    h2h = previous_p1[previous_p1["p2_id"] == match["p2_id"]]
 
-        time_played_30_days_p1 = matches_last_30_days["minutes"].sum()
+    h2h_p1_wins = len(h2h[h2h["p1_wins"] == 1].index)
+    h2h_p2_wins = len(h2h.index) - h2h_p1_wins
 
-        return time_since_last_match_p1, time_played_14_days_p1, time_played_30_days_p1
+    h2h_diff = h2h_p1_wins - h2h_p2_wins
 
-    #add_simple_features(matches)
-    #add_elaborated_features(matches)
+    h2h_last3 = None
+    if len(h2h.index) >= 3:
+        h2h_last3 = h2h.iloc[-3:]
+    else:
+        h2h_last3 = h2h.iloc[-len(h2h.index):]
+
+    h2h_last3_p1_wins = len(h2h_last3[h2h_last3["p1_wins"] == 1].index)
+    h2h_last3_p2_wins = len(h2h_last3.index) - h2h_last3_p1_wins
+    h2h_last3_diff = h2h_last3_p1_wins - h2h_last3_p2_wins
+
+    p1_win_ratio = get_player_win_ratio(previous_p1, True)
+    p2_win_ratio = get_player_win_ratio(previous_p2, True)
+
+    p1_win_ratio_last5 = get_player_win_ratio_last_x(5, previous_p1)
+    p1_win_ratio_last20 = get_player_win_ratio_last_x(20, previous_p1)
+
+    p2_win_ratio_last5 = get_player_win_ratio_last_x(5, previous_p2)
+    p2_win_ratio_last20 = get_player_win_ratio_last_x(20, previous_p2)
+
+    return time_since_last_match_p1, time_played_2_days_p1, time_played_7_days_p1, time_played_14_days_p1, \
+           time_played_30_days_p1, time_played_2_days_p2, time_played_7_days_p2, time_played_14_days_p2, \
+           time_played_30_days_p2, h2h_diff, h2h_last3_diff, p1_win_ratio, p2_win_ratio, p1_win_ratio_last5, \
+           p1_win_ratio_last20, p2_win_ratio_last5, p2_win_ratio_last20
+
+    # add_simple_features(matches)
+    # add_elaborated_features(matches)
 
 
 def get_categorical_cols():

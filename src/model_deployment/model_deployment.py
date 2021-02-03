@@ -1,19 +1,9 @@
-from datetime import datetime
-
-import numpy as np
-import pandas as pd
-import eli5 # FUTUREWARNING
-
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
-from eli5.sklearn import PermutationImportance
 from sklearn.ensemble import RandomForestClassifier
 
-from src.data_collection.data_preparation import inverse_half_dataset, inverse_dataset
 from src.queries.match_queries import retrieve_matches
 from src.model_deployment.feature_engineering import *
 from src.utils import get_mongo_client
@@ -30,15 +20,22 @@ def main():
 
     matches = retrieve_matches()
 
-    #add_features(matches)
+    # add_features(matches)
 
     # matches = matches.replace({np.nan: None})
 
     matches_part = matches.iloc[500:505].copy()
 
-    matches_part["time_since_last_match_p1"], matches_part["time_played_14_days_p1"], \
-        matches_part["time_played_30_days_p1"] = zip(*matches_part.apply(add_features, args=(matches,), axis=1))
+    features = pd.DataFrame()
 
+    (
+        features["time_since_last_match_p1"], features["time_played_2_days_p1"], features["time_played_7_days_p1"],
+        features["time_played_14_days_p1"], features["time_played_30_days_p1"], features["time_played_2_days_p2"],
+        features["time_played_7_days_p2"], features["time_played_14_days_p2"], features["time_played_30_days_p2"],
+        features["h2h_diff"], features["h2h_last3_diff"], features["p1_win_ratio"], features["p2_win_ratio"],
+        features["p1_win_ratio_last5"], features["p1_win_ratio_last20"], features["p2_win_ratio_last5"],
+        features["p2_win_ratio_last20"]
+    ) = zip(*matches_part.apply(add_features, args=(matches,), axis=1))
 
     matches = matches[get_categorical_cols() + get_numerical_cols() + ["p1_wins"]]
 
@@ -80,9 +77,8 @@ def main():
         ],
         remainder='passthrough')
 
-    #transformed_data = preprocessor.fit_transform(X_train, y_train)
-    #test = pd.DataFrame(transformed_data, columns=get_ct_feature_names(preprocessor))
-
+    # transformed_data = preprocessor.fit_transform(X_train, y_train)
+    # test = pd.DataFrame(transformed_data, columns=get_ct_feature_names(preprocessor))
 
     # Define model
     my_model = RandomForestClassifier(n_estimators=100)
@@ -98,13 +94,9 @@ def main():
     # Preprocessing of validation data, get predictions
     y_pred = my_pipeline.predict(X_test)
 
-
     accuracy = sum(y_pred == y_test.to_numpy()) / len(y_pred)
 
     print(accuracy)
-
-
-
 
     importances = my_model.feature_importances_
 
@@ -118,11 +110,8 @@ def main():
     for f in range(X_test.shape[1]):
         print("%d. feature %d (%f)" % (f + 1, indices[f], importances[indices[f]]))
 
-
-    test = my_pipeline.named_steps['preprocessor'].transformers_[1][1].named_steps['onehot']\
+    test = my_pipeline.named_steps['preprocessor'].transformers_[1][1].named_steps['onehot'] \
         .get_feature_names(categorical_cols)
-
-
 
     # import joblib
     from joblib import dump
