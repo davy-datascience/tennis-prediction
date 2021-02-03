@@ -335,7 +335,7 @@ def delete_match(_id):
 
 
 def scrap_matches(driver, matches_date):
-    matches_date = datetime.now()
+    matches_date = datetime.now() #ATTTTTTTTTTTTTTTTTTTTTTTTTTTTEENTION !
     driver = get_chrome_driver()
     match_url = "https://www.flashscore.com/tennis"
     driver.get(match_url)
@@ -477,9 +477,10 @@ def scrap_matches(driver, matches_date):
                         match["prediction"] = match_found["prediction"]
                         match["prediction_model"] = match_found["prediction_model"]
                         update_match(match)
-                    elif match_status == MatchStatus.Walkover:
+                    elif match_status in [MatchStatus.Walkover, MatchStatus.Cancelled]:
                         # Match has been canceled
                         delete_match(match_found["_id"])
+                        print("Delete match '{0}'".format(match_id))
                         pass
                     elif match_status == MatchStatus.Scheduled:
                         # Updating match datetime if changed
