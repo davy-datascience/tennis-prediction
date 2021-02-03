@@ -15,9 +15,13 @@ def scrap_player_id(player_name):
     match_url = 'https://www.atptour.com/en/search-results/players?searchTerm={}'.format(player_name)
     driver.get(match_url)
     time.sleep(1)  # Wait 1 sec to avoid IP being banned for scrapping
-    try:
-        elements = driver.find_elements_by_xpath("//table[@class='player-results-table']/tbody/tr/td[4]/a")
-        player_element = None
+
+    elements = driver.find_elements_by_xpath("//table[@class='player-results-table']/tbody/tr/td[4]/a")
+    player_element = None
+
+    if len(elements) == 0:
+        log("player_not_found", "'{0}' not found on atptour website".format(player_name))
+    else:
         for element in elements:
             if str.lower(element.text) == str.lower(player_name):
                 player_element = element
@@ -30,9 +34,6 @@ def scrap_player_id(player_name):
         href = player_element.get_attribute("href")
         href_regex = re.search(".+/(.*)/overview$", href)
         atptour_id = href_regex.group(1)
-
-    except (NoSuchElementException, AttributeError):
-        print("Player not found: {0}".format(player_name))
 
     driver.quit()
 
