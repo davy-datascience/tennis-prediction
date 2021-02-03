@@ -320,7 +320,7 @@ def update_match(match):
         match = match[ordered_attributes]
 
     try:
-        q_update_match(match["_id"], match.drop(labels=["_id"]).to_dict())
+        q_update_match(match)
         # TODO Delete next print
         print("match '{0}' has been updated".format(match["_id"]))
     except Exception as ex:
@@ -505,7 +505,6 @@ def scrap_matches(driver, matches_date):
                     match = scrap_match_flashscore(match_id, match_status)
 
                     if match is None:
-                        log("scrap_new_match", "Couldn't scrap match '{0}'".format(match_id))
                         continue
 
                     match["prediction"] = None

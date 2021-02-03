@@ -1,89 +1,12 @@
 import time
-import re
-import pandas as pd
+
 from datetime import datetime
 
 from src.log import log
 from src.data_collection.scrap_players import scrap_player_id, scrap_player
+from src.managers.player_rank_manager import retrieve_player_rank_info
 from src.queries.player_queries import find_player_by_id, q_create_player
-from src.utils import get_chrome_driver, get_mongo_client
-
-
-def scrap_all_player_ranks():
-    driver = get_chrome_driver()
-    try:
-        driver.get("https://www.atptour.com/en/rankings/singles")
-
-        date_str = driver.find_element_by_xpath("//div[@class='dropdown-wrapper']/div[1]/div/div").text
-        driver = get_chrome_driver(driver)
-        driver.get("https://www.atptour.com/en/rankings/singles?rankDate={0}&rankRange=1-5000".format(date_str.replace(".", "-")))
-
-        ranks = []
-        rank_elems = driver.find_elements_by_class_name("rank-cell")
-        for rank_elem in rank_elems:
-            rank_str = rank_elem.text
-            # Some low-level players has rank suffixed with T because they are ex-aequo
-            rank_str = rank_str.replace("T", "")
-            rank = int(rank_str)
-            ranks.append(rank)
-
-        points_elems = driver.find_elements_by_xpath("//td[@class='points-cell']/a")
-        rank_points = [points.text for points in points_elems]
-        rank_points = [int(points.replace(",", "")) for points in rank_points]
-
-        player_ids = []
-        player_elems = driver.find_elements_by_xpath("//td[@class='player-cell']/a")
-        for elem in player_elems:
-            href = elem.get_attribute("href")
-            player_id_regex = re.search("players/.*/(.*)/overview", href)
-            player_ids.append(player_id_regex.group(1))
-
-        player_ranks = pd.DataFrame({"rank": ranks, "player_id": player_ids, "rank_points": rank_points})
-
-        record_all_player_ranks(player_ranks)
-
-    except Exception as ex:
-        print(ex)
-        log("Player_ranks", "Couldn't retrieve player ranks")
-
-    driver.quit()
-
-
-def record_all_player_ranks(player_ranks):
-    mongo_client = get_mongo_client()
-    database = mongo_client["tennis"]
-    collection = database["player_ranks"]
-
-    # Remove previous ranks
-    collection.remove()
-
-    # Insert new ranks
-    records = player_ranks.to_dict(orient='records')
-    result = collection.insert_many(records)
-    return result.acknowledged
-
-
-def retrieve_all_player_ranks():
-    mongo_client = get_mongo_client()
-    database = mongo_client["tennis"]
-    collection = database["player_ranks"]
-
-    player_ranks = pd.DataFrame(list(collection.find({}, {'_id': False})))
-    return player_ranks
-
-
-def retrieve_player_rank_info(player_id, all_player_ranks=None):
-    """Retrieve player rank and rank_points"""
-    if all_player_ranks == None:
-        all_player_ranks = retrieve_all_player_ranks()
-
-    rank_info = all_player_ranks[all_player_ranks["player_id"] == player_id]
-
-    if len(rank_info.index) == 1:
-        return rank_info.iloc[0]["rank"], rank_info.iloc[0]["rank_points"]
-    else:
-        log("player_rank", "Player rank info not found for player '{0}'".format(player_id))
-        return None, None
+from src.utils import get_chrome_driver
 
 
 def get_player(player_id, players):
@@ -162,3 +85,16 @@ def scrap_new_player(flash_id, flash_url):
     player["atp_id"] = atp_id
 
     return player
+
+
+def create_player_manual(flash_id, flash_url, player_full_name, atp_id):
+    player = scrap_player(atp_id)
+    if player is None:
+        print("couldn't scrap player")
+
+    player["flash_id"] = flash_id
+    player["flash_url"] = flash_url
+    player["player_name"] = player_full_name
+    player["atp_id"] = atp_id
+
+    create_player(player)

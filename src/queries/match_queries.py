@@ -80,15 +80,22 @@ def q_create_match(match):
     return result.acknowledged
 
 
-def q_update_match(_id, match):
+def q_update_match(match):
     collection = get_matches_collection()
 
+    _id = match["_id"]
+    match_dict = match.drop(labels=["_id"]).to_dict()
+
+    print("updating match '{0}'".format(_id))
+
     # Add updated datetime
-    match["updated"] = datetime.utcnow()
+    match_dict["updated"] = datetime.utcnow()
+
+    match_json = loads(MatchEncoder().encode(match_dict))
 
     collection.find_one_and_update(
         {"_id": ObjectId(_id)},
-        {"$set": match}
+        {"$set": match_json}
     )
 
 
