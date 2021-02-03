@@ -169,7 +169,7 @@ def scrap_match_flashscore(match_id, status):
             minute = int(match_date_regex.group(5))
 
             match_date = pd.to_datetime("{0} {1} {2} {3} {4}".format(year, month, day, hour, minute)
-                                        , format='%Y %m %d %H %M', utc=True).replace(tzinfo=timezone('Europe/Paris'))
+                                        , format='%Y %m %d %H %M', utc=True)
 
         except Exception:
             msg = "Error with date format - scraping match '{}'".format(match_id)
