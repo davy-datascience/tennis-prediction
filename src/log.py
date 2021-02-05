@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from src.utils import get_mongo_client
@@ -25,3 +26,11 @@ def delete_log_by_label(label):
     mycol = get_log_collection()
 
     mycol.delete_many({"label": label})
+
+
+def log_to_file(msg, file_path, level=logging.DEBUG):
+    # Log
+    logging.basicConfig(filename=file_path, level=logging.DEBUG)
+    logging.log(level, msg)
+    # Print to console
+    print(msg)
