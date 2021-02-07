@@ -1,9 +1,8 @@
 import pandas as pd
 import re
 import time
-from pytz import timezone
 from selenium.common.exceptions import NoSuchElementException
-from datetime import datetime
+from datetime import datetime, timedelta
 from src.log import log
 
 from src.classes.match_status import MatchStatus
@@ -11,7 +10,7 @@ from src.managers.player_manager import add_player_info
 from src.managers.tournament_manager import scrap_tournament, add_tournament_info, update_tournament, create_tournament
 from src.queries.match_queries import q_find_match_by_id, q_update_match, q_create_match, q_delete_match
 from src.queries.tournament_queries import find_tournament_by_name
-from src.utils import element_has_class, get_chrome_driver, get_mongo_client
+from src.utils import element_has_class, get_chrome_driver
 
 
 def get_match_dtypes():
@@ -334,17 +333,31 @@ def delete_match(_id):
         log("match_delete", "match '{0}' not deleted".format(_id))
 
 
-def scrap_matches(driver, matches_date):
-    matches_date = datetime.now() #ATTTTTTTTTTTTTTTTTTTTTTTTTTTTEENTION !
+def scrap_matches_at_date(matches_date):
     driver = get_chrome_driver()
     match_url = "https://www.flashscore.com/tennis"
     driver.get(match_url)
-    # time.sleep(1)
+
     '''datepick = driver.find_element_by_class_name('calendar__datepicker')
-    datepickdate = driver.find_element_by_xpath("//div[@class='calendar__datepicker--dates']/div[2]")
-    yesterday = driver.find_element_by_class_name('calendar__nav')'''
-    # yesterday.click()
-    # TODO delete prev lines
+        datepickdate = driver.find_element_by_xpath("//div[@class='calendar__datepicker--dates']/div[2]")'''
+
+    now = datetime.now()
+    today = now.date()
+
+    time_delta = (matches_date - today).days
+
+    nav_elements = driver.find_elements_by_class_name('calendar__nav')
+
+    if time_delta < 0:
+        for i in range(-time_delta):
+            yesterday = nav_elements[0]
+            yesterday.click()
+            time.sleep(2)
+    elif time_delta > 0:
+        for i in range(time_delta):
+            tomorrow = nav_elements[1]
+            tomorrow.click()
+            time.sleep(2)
 
     tournament = None
     elements = driver.find_elements_by_xpath("//div[@class='sportName tennis']/div")
@@ -513,3 +526,11 @@ def scrap_matches(driver, matches_date):
                     create_match(match)
 
     driver.quit()
+
+
+def scrap_matches():
+    today = datetime.now().date()
+
+    # Scrap matches from yesterday to D+3
+    for delta in range(-2, 4):
+        scrap_matches_at_date(today + timedelta(days=delta))
