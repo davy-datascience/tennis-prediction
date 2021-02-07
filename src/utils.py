@@ -1,5 +1,4 @@
 import configparser
-import time
 
 from pymongo import MongoClient
 from selenium import webdriver
@@ -12,24 +11,30 @@ def element_has_class(web_element, class_name):
 
 def get_chrome_driver(driver=None):
     """Get a new chrome driver or replace it to pass through DDOS protection"""
+
+    # Get path of chrome driver
+    config = configparser.ConfigParser()
+    config.read("src/config.ini")
+    chrome_driver_path = config['webdriver']['path']
+
     if driver is not None:
         # Quit existing driver
         driver.quit()
 
     driver = None
-    while driver is None:
-        try:
-            chrome_options = webdriver.ChromeOptions()
-            chrome_options.add_argument('--remote-debugging-port=9222')
-            chrome_options.add_argument('--headless')
-            chrome_options.add_argument('--no-sandbox')
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            #driver = webdriver.Chrome('/home/davy/Drivers/chromedriver', options=chrome_options)
-            driver = webdriver.Chrome('/home/davy/Drivers/chromedriver')
-        except Exception as ex:
-            print(ex)
-            print("CHROME DRIVER CRASHED - RETRIEVING ...")
-            time.sleep(3)
+
+    # Instantiate new chrome driver
+    try:
+        chrome_options = webdriver.ChromeOptions()
+        chrome_options.add_argument('--remote-debugging-port=9222')
+        # chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        driver = webdriver.Chrome(chrome_driver_path, options=chrome_options)
+        # driver = webdriver.Chrome(chrome_driver_path)
+    except Exception as ex:
+        print("CHROME DRIVER CRASHED !!!")
+        print(ex)
 
     return driver
 
