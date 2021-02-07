@@ -1,5 +1,6 @@
 import re
-from datetime import datetime
+import time
+from datetime import datetime, date
 
 import pandas as pd
 
@@ -16,6 +17,14 @@ def scrap_all_player_ranks():
         driver.get("https://www.atptour.com/en/rankings/singles")
 
         date_str = driver.find_element_by_xpath("//div[@class='dropdown-wrapper']/div[1]/div/div").text
+
+        last_ranking_date = datetime.strptime(date_str, '%Y.%m.%d').date()
+        today = date.today()
+
+        if last_ranking_date != today:
+            # Check if last ranking date on atptour match current date. If not, do not scrap
+            raise ValueError()
+
         driver = get_chrome_driver(driver)
         driver.get("https://www.atptour.com/en/rankings/singles?rankDate={0}&rankRange=1-5000".format(
             date_str.replace(".", "-")))
@@ -45,11 +54,12 @@ def scrap_all_player_ranks():
         if record_all_player_ranks(player_ranks):
             log("Player_ranks", "Player ranks successfully updated")
         else:
-            raise Exception('player ranks not updated')
+            raise Exception('Player ranks not recorded')
 
+    except ValueError:
+        log("Player_ranks", "Player ranks not updated on atptour")
     except Exception as ex:
-        print(ex)
-        log("Player_ranks", "Couldn't retrieve player ranks")
+        log("Player_ranks", str(ex))
 
     driver.quit()
 
