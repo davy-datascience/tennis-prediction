@@ -31,6 +31,6 @@ def delete_log_by_label(label):
 def log_to_file(msg, file_path, level=logging.DEBUG):
     # Log
     logging.basicConfig(filename=file_path, level=logging.DEBUG)
-    logging.log(level, msg)
+    logging.log(level, "{0}\n".format(msg))
     # Print to console
     print(msg)
