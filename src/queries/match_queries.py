@@ -33,6 +33,14 @@ def get_matches_json(matches):
     return loads(MatchEncoder().encode(matches.to_dict('records')))
 
 
+def get_matches_with_features_json(matches, feat):
+    matches_dict = matches.to_dict('records')
+    for i in range(len(matches.index)):
+        matches_dict[i]["features"] = feat.iloc[i:i+1].to_dict('records')[0]
+
+    result = loads(MatchEncoder().encode(matches_dict))
+
+
 def get_matches_collection():
     mongo_client = get_mongo_client()
     database = mongo_client["tennis"]
@@ -45,8 +53,11 @@ def record_matches(matches):
     # Remove previous matches
     collection.remove()
 
-    # Add created datetime
-    matches["created"] = datetime.utcnow()
+    # Add created and updated datetime
+    now = datetime.utcnow().replace(microsecond=0)
+    matches["created"] = now
+    matches["updated"] = now
+
 
     # Insert new matches
     matches_json = get_matches_json(matches)
@@ -59,6 +70,30 @@ def retrieve_matches():
     collection = get_matches_collection()
 
     matches = pd.DataFrame(list(collection.find({}, {'_id': False})))
+
+    return matches
+
+
+def q_get_finished_matches():
+    collection = get_matches_collection()
+
+    matches = pd.DataFrame(list(collection.find({"status": "Finished"}, {'_id': False})))
+
+    return matches
+
+
+def q_get_past_matches():
+    collection = get_matches_collection()
+
+    matches = pd.DataFrame(list(collection.find({"status": {"$ne": "Scheduled"}}, {'_id': False})))
+
+    return matches
+
+
+def q_get_scheduled_matches():
+    collection = get_matches_collection()
+
+    matches = pd.DataFrame(list(collection.find({"status": "Scheduled"})))
 
     return matches
 
