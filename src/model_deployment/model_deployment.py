@@ -9,8 +9,8 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
 
 from src.managers.match_manager import get_match_dtypes
-from src.queries.match_queries import q_get_finished_matches, q_get_past_matches
-from src.model_deployment.feature_engineering import add_features, get_categorical_cols, get_numerical_cols
+from src.queries.match_queries import q_get_finished_matches, q_get_past_matches, retrieve_matches
+from src.model_deployment.feature_engineering import get_categorical_cols, get_numerical_cols, add_features
 from src.utils import get_mongo_client
 
 
@@ -23,8 +23,9 @@ def main():
         # No new match to predict
         return
 
-    '''matches = retrieve_matches()
-    matches = matches.astype(get_match_dtypes())'''
+    matches = retrieve_matches()
+    matches = matches.astype(get_match_dtypes(matches))
+    features = add_features(matches, matches)
 
     # finished_matches: matches that were played entirely
     finished_matches = q_get_finished_matches()
@@ -34,25 +35,7 @@ def main():
     past_matches = q_get_past_matches()
     past_matches = past_matches.astype(get_match_dtypes(past_matches))
 
-    features = pd.DataFrame()
-
-    iteration = {"val": 0}
-
-    (
-        features["time_since_last_match_p1"], features["time_since_last_match_p2"], features["time_played_2_days_p1"],
-        features["time_played_7_days_p1"], features["time_played_14_days_p1"], features["time_played_30_days_p1"],
-        features["time_played_2_days_p2"], features["time_played_7_days_p2"], features["time_played_14_days_p2"],
-        features["time_played_30_days_p2"], features["h2h_p1_wins"], features["h2h_last3_p1_wins"],
-        features["h2h_last7_p1_wins"],features["h2h_p2_wins"], features["h2h_last3_p2_wins"],
-        features["h2h_last7_p2_wins"], features["p1_played_total"], features["p1_played_last5"],
-        features["p1_played_last20"], features["p1_victories_total"], features["p1_victories_last5"],
-        features["p1_victories_last20"], features["p2_played_total"], features["p2_played_last5"],
-        features["p2_played_last20"], features["p2_victories_total"], features["p2_victories_last5"],
-        features["p2_victories_last20"]
-
-    ) = zip(*finished_matches[["datetime", "p1_id", "p2_id", "p1_wins"]]
-            .apply(add_features, args=(past_matches, iteration), axis=1))
-
+    features = add_features(finished_matches, past_matches)
 
     # Add the features previously created
     matches = pd.concat([finished_matches, features], axis=1).copy()
