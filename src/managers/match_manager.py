@@ -13,27 +13,37 @@ from src.queries.tournament_queries import find_tournament_by_name
 from src.utils import element_has_class, get_chrome_driver
 
 
-def get_match_dtypes():
-    return {"draw_size": "Int16", "best_of": "object", "minutes": "Int16", "p1_ht": "Int16", "p2_ht": "Int16",
-            "p1_weight": "Int16",
-            "p2_weight": "Int16", "p1_ace": "Int16", "p2_ace": "Int16", "p1_df": "Int16", "p2_df": "Int16",
-            "p1_svpt": "Int16", "p2_svpt": "Int16", "p1_1st_in": "Int16", "p2_1st_in": "Int16", "p1_1st_won": "Int16",
-            "p2_1st_won": "Int16", "p1_2nd_won": "Int16", "p2_2nd_won": "Int16", "p1_sv_gms": "Int16",
-            "p2_sv_gms": "Int16", "p1_bp_saved": "Int16", "p2_bp_saved": "Int16", "p1_bp_faced": "Int16",
-            "p2_bp_faced": "Int16", "p1_rank": "Int16", "p2_rank": "Int16", "p1_rank_points": "Int16",
-            "p2_rank_points": "Int16", "p1_s1_gms": "Int16", "p2_s1_gms": "Int16", "p1_tb1_score": "Int16",
-            "p2_tb1_score": "Int16", "p1_s2_gms": "Int16", "p2_s2_gms": "Int16", "p1_tb2_score": "Int16",
-            "p2_tb2_score": "Int16", "p1_s3_gms": "Int16", "p2_s3_gms": "Int16", "p1_tb3_score": "Int16",
-            "p2_tb3_score": "Int16", "p1_s4_gms": "Int16", "p2_s4_gms": "Int16", "p1_tb4_score": "Int16",
-            "p2_tb4_score": "Int16", "p1_s5_gms": "Int16", "p2_s5_gms": "Int16", "p1_tb5_score": "Int16",
-            "p2_tb5_score": "Int16", "p1_2nd_pts": "Int16", "p2_2nd_pts": "Int16", "p1_svpt_won": "Int16",
-            "p2_svpt_won": "Int16", "p1_age": "float", "p2_age": "float", "p1_1st_serve_ratio": "float",
-            "p2_1st_serve_ratio": "float", "p1_svpt_ratio": "float", "p2_svpt_ratio": "float",
-            "p1_1st_won_ratio": "float", "p2_1st_won_ratio": "float", "p1_2nd_won_ratio": "float",
-            "p2_2nd_won_ratio": "float", "p1_sv_gms_won": "Int16", "p2_sv_gms_won": "Int16",
-            "p1_sv_gms_won_ratio": "float", "p2_sv_gms_won_ratio": "float", "p1_bp_saved_ratio": "float",
-            "p2_bp_saved_ratio": "float", "p1_wins": "bool", "datetime": "datetime64[ns, utc]",
-            "tour_date": "datetime64[ns, utc]"}
+def get_match_dtypes(matches):
+    all_dtypes = {
+        "draw_size": "Int16", "best_of": "object", "minutes": "Int16", "p1_ht": "Int16", "p2_ht": "Int16",
+        "p1_weight": "Int16",
+        "p2_weight": "Int16", "p1_ace": "Int16", "p2_ace": "Int16", "p1_df": "Int16", "p2_df": "Int16",
+        "p1_svpt": "Int16", "p2_svpt": "Int16", "p1_1st_in": "Int16", "p2_1st_in": "Int16", "p1_1st_won": "Int16",
+        "p2_1st_won": "Int16", "p1_2nd_won": "Int16", "p2_2nd_won": "Int16", "p1_sv_gms": "Int16",
+        "p2_sv_gms": "Int16", "p1_bp_saved": "Int16", "p2_bp_saved": "Int16", "p1_bp_faced": "Int16",
+        "p2_bp_faced": "Int16", "p1_rank": "Int16", "p2_rank": "Int16", "p1_rank_points": "Int16",
+        "p2_rank_points": "Int16", "p1_s1_gms": "Int16", "p2_s1_gms": "Int16", "p1_tb1_score": "Int16",
+        "p2_tb1_score": "Int16", "p1_s2_gms": "Int16", "p2_s2_gms": "Int16", "p1_tb2_score": "Int16",
+        "p2_tb2_score": "Int16", "p1_s3_gms": "Int16", "p2_s3_gms": "Int16", "p1_tb3_score": "Int16",
+        "p2_tb3_score": "Int16", "p1_s4_gms": "Int16", "p2_s4_gms": "Int16", "p1_tb4_score": "Int16",
+        "p2_tb4_score": "Int16", "p1_s5_gms": "Int16", "p2_s5_gms": "Int16", "p1_tb5_score": "Int16",
+        "p2_tb5_score": "Int16", "p1_2nd_pts": "Int16", "p2_2nd_pts": "Int16", "p1_svpt_won": "Int16",
+        "p2_svpt_won": "Int16", "p1_age": "float", "p2_age": "float", "p1_1st_serve_ratio": "float",
+        "p2_1st_serve_ratio": "float", "p1_svpt_ratio": "float", "p2_svpt_ratio": "float",
+        "p1_1st_won_ratio": "float", "p2_1st_won_ratio": "float", "p1_2nd_won_ratio": "float",
+        "p2_2nd_won_ratio": "float", "p1_sv_gms_won": "Int16", "p2_sv_gms_won": "Int16",
+        "p1_sv_gms_won_ratio": "float", "p2_sv_gms_won_ratio": "float", "p1_bp_saved_ratio": "float",
+        "p2_bp_saved_ratio": "float", "p1_wins": "bool", "datetime": "datetime64[ns, utc]",
+        "tour_date": "datetime64[ns, utc]", "created": "datetime64[ns, utc]", "updated": "datetime64[ns, utc]"
+    }
+
+    dtypes = {}
+
+    for col in matches.columns.to_list():
+        if col in all_dtypes.keys():
+            dtypes[col] = all_dtypes[col]
+
+    return dtypes
 
 
 def get_match_ordered_attributes():
@@ -532,5 +542,5 @@ def scrap_matches():
     today = datetime.now().date()
 
     # Scrap matches from yesterday to D+3
-    for delta in range(-2, 4):
+    for delta in range(-1, 3):
         scrap_matches_at_date(today + timedelta(days=delta))

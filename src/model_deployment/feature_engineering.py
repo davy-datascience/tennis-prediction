@@ -4,6 +4,7 @@ import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import _VectorizerMixin
 from sklearn.feature_selection import SelectorMixin
+from datetime import datetime
 
 from src.data_collection.data_preparation import inverse_dataset
 from src.utils import *
@@ -48,6 +49,7 @@ def get_player_win_ratio(prev_matches, is_all_time):
     player_total_played = len(prev_matches.index)
     if player_total_played > 0:
         player_total_wins = len(prev_matches[prev_matches["p1_wins"] == 1].index)
+        # If player has only played less than 10 matches in total, and won those matches don't set win ratio to maximum
         if not (is_all_time and (player_total_wins == player_total_played and player_total_played < 10)):
             player_win_ratio = player_total_wins / player_total_played
 
@@ -63,11 +65,36 @@ def get_player_win_ratio_last_x(nb_matches, prev_matches):
     return player_win_ratio_last_x
 
 
-def add_features(match, matches):
+def get_player_last_matches(prev_matches, nb_matches=None):
+    if nb_matches is None:
+        return prev_matches
+    else:
+        return prev_matches.iloc[-nb_matches:] if len(prev_matches.index) >= nb_matches else prev_matches
+
+
+def get_player_nb_matches(prev_matches, nb_matches=None):
+    matches = get_player_last_matches(prev_matches, nb_matches)
+    return len(matches.index)
+
+
+def get_player_nb_victories(prev_matches, nb_matches=None):
+    matches = get_player_last_matches(prev_matches, nb_matches)
+    return len(matches[matches["p1_wins"] == 1].index)
+
+
+def add_features(match, matches, iteration):
+    if iteration["val"] % 5000 == 0:
+        print("[{0}] {1}".format(iteration["val"], datetime.now()))
+    iteration["val"] += 1
+
     previous_p1 = get_player_previous_matches(match["p1_id"], match["datetime"], matches)
     previous_p2 = get_player_previous_matches(match["p2_id"], match["datetime"], matches)
 
-    time_since_last_match_p1 = (match["datetime"] - previous_p1.iloc[-1]["datetime"]).seconds
+    if len(previous_p1) == 0 or len(previous_p2) == 0:
+        return (None,) * 28 # Set to number of values to unpack
+
+    time_since_last_match_p1 = (match["datetime"] - previous_p1.iloc[-1]["datetime"]).total_seconds() / 60
+    time_since_last_match_p2 = (match["datetime"] - previous_p2.iloc[-1]["datetime"]).total_seconds() / 60
 
     time_played_2_days_p1 = get_time_played_last_x_days(2, match["datetime"], previous_p1)
     time_played_7_days_p1 = get_time_played_last_x_days(7, match["datetime"], previous_p1)
@@ -81,34 +108,59 @@ def add_features(match, matches):
 
     h2h = previous_p1[previous_p1["p2_id"] == match["p2_id"]]
 
-    h2h_p1_wins = len(h2h[h2h["p1_wins"] == 1].index)
-    h2h_p2_wins = len(h2h.index) - h2h_p1_wins
+    h2h_p1_wins = get_player_nb_victories(h2h)
+    h2h_p2_wins = get_player_nb_matches(h2h) - h2h_p1_wins
+    #h2h_diff = h2h_p1_wins - h2h_p2_wins
 
-    h2h_diff = h2h_p1_wins - h2h_p2_wins
+    h2h_last3_p1_wins = get_player_nb_victories(h2h, 3)    
+    h2h_last3_p2_wins = get_player_nb_matches(h2h, 3) - h2h_last3_p1_wins
+    #h2h_last3_diff = h2h_last3_p1_wins - h2h_last3_p2_wins
 
-    h2h_last3 = None
-    if len(h2h.index) >= 3:
-        h2h_last3 = h2h.iloc[-3:]
-    else:
-        h2h_last3 = h2h.iloc[-len(h2h.index):]
+    h2h_last7_p1_wins = get_player_nb_victories(h2h, 7)
+    h2h_last7_p2_wins = get_player_nb_matches(h2h, 7) - h2h_last3_p1_wins
+    # h2h_last7_diff = h2h_last7_p1_wins - h2h_last7_p2_wins
 
-    h2h_last3_p1_wins = len(h2h_last3[h2h_last3["p1_wins"] == 1].index)
-    h2h_last3_p2_wins = len(h2h_last3.index) - h2h_last3_p1_wins
-    h2h_last3_diff = h2h_last3_p1_wins - h2h_last3_p2_wins
-
-    p1_win_ratio = get_player_win_ratio(previous_p1, True)
+    '''p1_win_ratio = get_player_win_ratio(previous_p1, True)
     p2_win_ratio = get_player_win_ratio(previous_p2, True)
 
     p1_win_ratio_last5 = get_player_win_ratio_last_x(5, previous_p1)
     p1_win_ratio_last20 = get_player_win_ratio_last_x(20, previous_p1)
 
     p2_win_ratio_last5 = get_player_win_ratio_last_x(5, previous_p2)
-    p2_win_ratio_last20 = get_player_win_ratio_last_x(20, previous_p2)
+    p2_win_ratio_last20 = get_player_win_ratio_last_x(20, previous_p2)'''
 
-    return time_since_last_match_p1, time_played_2_days_p1, time_played_7_days_p1, time_played_14_days_p1, \
-           time_played_30_days_p1, time_played_2_days_p2, time_played_7_days_p2, time_played_14_days_p2, \
-           time_played_30_days_p2, h2h_diff, h2h_last3_diff, p1_win_ratio, p2_win_ratio, p1_win_ratio_last5, \
-           p1_win_ratio_last20, p2_win_ratio_last5, p2_win_ratio_last20
+
+    p1_played_total = get_player_nb_matches(previous_p1)
+    p1_played_last5 = get_player_nb_matches(previous_p1, 5)
+    p1_played_last20 = get_player_nb_matches(previous_p1, 20)
+    
+    p1_victories_total = get_player_nb_victories(previous_p1)
+    p1_victories_last5 = get_player_nb_victories(previous_p1, 5)
+    p1_victories_last20 = get_player_nb_victories(previous_p1, 20)
+
+    p2_played_total = get_player_nb_matches(previous_p2)
+    p2_played_last5 = get_player_nb_matches(previous_p2, 5)
+    p2_played_last20 = get_player_nb_matches(previous_p2, 20)
+
+    p2_victories_total = get_player_nb_victories(previous_p2)
+    p2_victories_last5 = get_player_nb_victories(previous_p2, 5)
+    p2_victories_last20 = get_player_nb_victories(previous_p2, 20)
+
+    '''return (
+        time_since_last_match_p1, time_since_last_match_p2, time_played_2_days_p1, time_played_7_days_p1,
+        time_played_14_days_p1, time_played_30_days_p1, time_played_2_days_p2, time_played_7_days_p2,
+        time_played_14_days_p2, time_played_30_days_p2, h2h_diff, h2h_last3_diff, p1_win_ratio, p2_win_ratio,
+        p1_win_ratio_last5, p1_win_ratio_last20, p2_win_ratio_last5, p2_win_ratio_last20
+    )'''
+
+    return (
+        time_since_last_match_p1, time_since_last_match_p2, time_played_2_days_p1, time_played_7_days_p1,
+        time_played_14_days_p1, time_played_30_days_p1, time_played_2_days_p2, time_played_7_days_p2,
+        time_played_14_days_p2, time_played_30_days_p2, h2h_p1_wins, h2h_last3_p1_wins, h2h_last7_p1_wins, h2h_p2_wins, 
+        h2h_last3_p2_wins, h2h_last7_p2_wins, p1_played_total, p1_played_last5, p1_played_last20, p1_victories_total,
+        p1_victories_last5, p1_victories_last20, p2_played_total, p2_played_last5, p2_played_last20, p2_victories_total,
+        p2_victories_last5, p2_victories_last20
+    )
 
     # add_simple_features(matches)
     # add_elaborated_features(matches)
@@ -120,7 +172,11 @@ def get_categorical_cols():
 
 
 def get_numerical_cols():
-    return ["p1_ht", "p1_age", "p1_rank", "p2_ht", "p2_age", "p2_rank"]
+    return ["p1_ht", "p1_age", "p1_rank", "p2_ht", "p2_age", "p2_rank", "time_since_last_match_p1",
+            "time_played_2_days_p1", "time_played_7_days_p1", "time_played_14_days_p1", "time_played_30_days_p1",
+            "time_played_2_days_p2", "time_played_7_days_p2", "time_played_14_days_p2", "time_played_30_days_p2",
+            "h2h_diff", "h2h_last3_diff", "p1_win_ratio", "p2_win_ratio", "p1_win_ratio_last5", "p1_win_ratio_last20",
+            "p2_win_ratio_last5", "p2_win_ratio_last20"]
 
 
 def get_feature_out(estimator, feature_in):

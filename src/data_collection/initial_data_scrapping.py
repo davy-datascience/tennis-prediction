@@ -121,9 +121,6 @@ dataset = refactor_values(dataset, players)
 
 matches = dataset.copy()
 
-matches["p1_is_home"] = matches.apply(lambda match: match["p1_birth_country"] == match["country"], axis=1)
-matches["p2_is_home"] = matches.apply(lambda match: match["p2_birth_country"] == match["country"], axis=1)
-
 
 
 
