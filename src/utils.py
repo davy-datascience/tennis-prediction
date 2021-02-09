@@ -26,7 +26,9 @@ def get_chrome_driver(driver=None):
     # Instantiate new chrome driver
     try:
         chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_argument('--remote-debugging-port=9222')
+        # Don't use because don't open 2 windows(matches + match_detail) while scrapping matches
+        # chrome_options.add_argument('--remote-debugging-port=9222')
+
         # chrome_options.add_argument('--headless')
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
