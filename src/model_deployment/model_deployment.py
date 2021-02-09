@@ -1,11 +1,16 @@
+import pandas as pd
+import numpy as np
+
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
 
-from src.queries.match_queries import retrieve_matches
-from src.model_deployment.feature_engineering import *
+from src.managers.match_manager import get_match_dtypes
+from src.queries.match_queries import q_get_finished_matches, q_get_past_matches
+from src.model_deployment.feature_engineering import add_features, get_categorical_cols, get_numerical_cols
 from src.utils import get_mongo_client
 
 
@@ -18,24 +23,44 @@ def main():
         # No new match to predict
         return
 
-    matches = retrieve_matches()
+    '''matches = retrieve_matches()
+    matches = matches.astype(get_match_dtypes())'''
 
-    # add_features(matches)
+    # finished_matches: matches that were played entirely
+    finished_matches = q_get_finished_matches()
+    finished_matches = finished_matches.astype(get_match_dtypes(finished_matches))
 
-    # matches = matches.replace({np.nan: None})
-
-    matches_part = matches.iloc[500:505].copy()
+    # past_matches: all previous matches including when one player retired
+    past_matches = q_get_past_matches()
+    past_matches = past_matches.astype(get_match_dtypes(past_matches))
 
     features = pd.DataFrame()
 
+    iteration = {"val": 0}
+
     (
-        features["time_since_last_match_p1"], features["time_played_2_days_p1"], features["time_played_7_days_p1"],
-        features["time_played_14_days_p1"], features["time_played_30_days_p1"], features["time_played_2_days_p2"],
-        features["time_played_7_days_p2"], features["time_played_14_days_p2"], features["time_played_30_days_p2"],
-        features["h2h_diff"], features["h2h_last3_diff"], features["p1_win_ratio"], features["p2_win_ratio"],
-        features["p1_win_ratio_last5"], features["p1_win_ratio_last20"], features["p2_win_ratio_last5"],
-        features["p2_win_ratio_last20"]
-    ) = zip(*matches_part.apply(add_features, args=(matches,), axis=1))
+        features["time_since_last_match_p1"], features["time_since_last_match_p2"], features["time_played_2_days_p1"],
+        features["time_played_7_days_p1"], features["time_played_14_days_p1"], features["time_played_30_days_p1"],
+        features["time_played_2_days_p2"], features["time_played_7_days_p2"], features["time_played_14_days_p2"],
+        features["time_played_30_days_p2"], features["h2h_p1_wins"], features["h2h_last3_p1_wins"],
+        features["h2h_last7_p1_wins"],features["h2h_p2_wins"], features["h2h_last3_p2_wins"],
+        features["h2h_last7_p2_wins"], features["p1_played_total"], features["p1_played_last5"],
+        features["p1_played_last20"], features["p1_victories_total"], features["p1_victories_last5"],
+        features["p1_victories_last20"], features["p2_played_total"], features["p2_played_last5"],
+        features["p2_played_last20"], features["p2_victories_total"], features["p2_victories_last5"],
+        features["p2_victories_last20"]
+
+    ) = zip(*finished_matches[["datetime", "p1_id", "p2_id", "p1_wins"]]
+            .apply(add_features, args=(past_matches, iteration), axis=1))
+
+
+    # Add the features previously created
+    matches = pd.concat([finished_matches, features], axis=1).copy()
+
+    matches["p1_is_home"] = matches.apply(lambda match: match["p1_birth_country"] == match["country"], axis=1)
+    matches["p2_is_home"] = matches.apply(lambda match: match["p2_birth_country"] == match["country"], axis=1)
+
+    # matches = matches.replace({np.nan: None})
 
     matches = matches[get_categorical_cols() + get_numerical_cols() + ["p1_wins"]]
 
@@ -97,6 +122,8 @@ def main():
     accuracy = sum(y_pred == y_test.to_numpy()) / len(y_pred)
 
     print(accuracy)
+
+
 
     importances = my_model.feature_importances_
 
