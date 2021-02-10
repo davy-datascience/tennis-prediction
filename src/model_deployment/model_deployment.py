@@ -1,7 +1,6 @@
 import configparser
 
 import pandas as pd
-import numpy as np
 
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
@@ -12,8 +11,8 @@ from sklearn.ensemble import RandomForestClassifier
 from joblib import dump, load
 
 from src.managers.match_manager import get_match_dtypes
-from src.queries.match_queries import q_get_past_matches, retrieve_matches, q_get_scheduled_matches, \
-    get_embedded_matches_json, q_update_match
+from src.queries.match_queries import q_get_past_matches, q_get_scheduled_matches, q_update_match, \
+    get_embedded_matches_json
 from src.model_deployment.feature_engineering import get_categorical_cols, get_numerical_cols, add_features
 from src.utils import get_mongo_client
 
