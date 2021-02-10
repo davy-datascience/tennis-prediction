@@ -78,6 +78,9 @@ def retrieve_player_rank_info(player_id, all_player_ranks=None):
         return None, None
 
 
+# function q_update_match has changed
+'''
+@DeprecationWarning
 def fix_ranks():
     # Fix player rank info if CRON of player ranks didn't work
     collection = get_matches_collection()
@@ -99,4 +102,4 @@ def fix_ranks():
 
     matches.drop(columns=["p1_atp_id", "p2_atp_id"], inplace=True)
 
-    matches.apply(q_update_match, axis=1)
+    matches.apply(q_update_match, axis=1)'''

@@ -82,16 +82,13 @@ def get_player_nb_victories(prev_matches, nb_matches=None):
     return len(matches[matches["p1_wins"] == 1].index)
 
 
-def add_features_p1(match, matches, iteration):
-    if iteration["val"] % 5000 == 0:
-        print("[{0}] {1}".format(iteration["val"], datetime.now()))
-    iteration["val"] += 1
-
+def add_features_p1(match, matches):
     previous_p1 = get_player_previous_matches(match["p1_id"], match["datetime"], matches)
     previous_p2 = get_player_previous_matches(match["p2_id"], match["datetime"], matches)
 
     if len(previous_p1) == 0 or len(previous_p2) == 0:
-        return (None,) * 37 # Set to number of values to unpack
+        '''Set to number of values to unpack'''
+        return (None,) * 37
 
     time_since_last_match_p1 = (match["datetime"] - previous_p1.iloc[-1]["datetime"]).total_seconds() / 60
     time_since_last_match_p2 = (match["datetime"] - previous_p2.iloc[-1]["datetime"]).total_seconds() / 60
@@ -129,7 +126,6 @@ def add_features_p1(match, matches, iteration):
     p2_win_ratio_last5 = get_player_win_ratio_last_x(5, previous_p2)
     p2_win_ratio_last20 = get_player_win_ratio_last_x(20, previous_p2)
 
-
     p1_played_total = get_player_nb_matches(previous_p1)
     p1_played_last5 = get_player_nb_matches(previous_p1, 5)
     p1_played_last20 = get_player_nb_matches(previous_p1, 20)
@@ -158,11 +154,8 @@ def add_features_p1(match, matches, iteration):
 
 
 '''CAREFULL CHECK NB VALUES TO UNPACK IN add_features_p1 '''
-def add_features(finished_matches, past_matches):
+def add_features(scheduled_matches, past_matches):
     features = pd.DataFrame()
-
-    iteration = {"val": 0}
-
     (
         features["time_since_last_match_p1"], features["time_since_last_match_p2"], features["time_played_2_days_p1"],
         features["time_played_7_days_p1"], features["time_played_14_days_p1"], features["time_played_30_days_p1"],
@@ -177,8 +170,13 @@ def add_features(finished_matches, past_matches):
         features["p2_win_ratio"], features["p1_win_ratio_last5"], features["p1_win_ratio_last20"],
         features["p2_win_ratio_last5"], features["p2_win_ratio_last20"]
 
-    ) = zip(*finished_matches[["datetime", "p1_id", "p2_id", "p1_wins"]]
-            .apply(add_features_p1, args=(past_matches, iteration), axis=1))
+    ) = zip(*scheduled_matches[["datetime", "p1_id", "p2_id"]]
+            .apply(add_features_p1, args=(past_matches), axis=1))
+
+    features["p1_is_home"] = scheduled_matches.apply(lambda match: match["p1_birth_country"] == match["country"],
+                                                     axis=1)
+    features["p2_is_home"] = scheduled_matches.apply(lambda match: match["p2_birth_country"] == match["country"],
+                                                     axis=1)
 
     return features
 
@@ -190,10 +188,10 @@ def get_categorical_cols():
 
 def get_numerical_cols():
     return ["p1_ht", "p1_age", "p1_rank", "p2_ht", "p2_age", "p2_rank", "time_since_last_match_p1",
-            "time_played_2_days_p1", "time_played_7_days_p1", "time_played_14_days_p1", "time_played_30_days_p1",
-            "time_played_2_days_p2", "time_played_7_days_p2", "time_played_14_days_p2", "time_played_30_days_p2",
-            "h2h_diff", "h2h_last3_diff", "p1_win_ratio", "p2_win_ratio", "p1_win_ratio_last5", "p1_win_ratio_last20",
-            "p2_win_ratio_last5", "p2_win_ratio_last20"]
+            "time_since_last_match_p2", "time_played_2_days_p1", "time_played_7_days_p1", "time_played_14_days_p1",
+            "time_played_30_days_p1", "time_played_2_days_p2", "time_played_7_days_p2", "time_played_14_days_p2",
+            "time_played_30_days_p2", "h2h_diff", "h2h_last3_diff", "h2h_last7_diff", "p1_win_ratio", "p2_win_ratio",
+            "p1_win_ratio_last5", "p1_win_ratio_last20", "p2_win_ratio_last5", "p2_win_ratio_last20"]
 
 
 def get_feature_out(estimator, feature_in):
