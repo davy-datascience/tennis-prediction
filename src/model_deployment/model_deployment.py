@@ -117,7 +117,7 @@ def get_predictions(scheduled_matches, pipeline):
 
     X = scheduled_matches[get_categorical_cols() + get_numerical_cols()]
     scheduled_pred = pipeline.predict_proba(X)
-    predictions = pd.DataFrame(scheduled_pred, columns=["p1_proba", "p2_proba"])
+    predictions = pd.DataFrame(scheduled_pred, columns=["p2_proba", "p1_proba"])
     predictions["model"] = model
 
     return predictions
@@ -135,6 +135,7 @@ def build_predictions():
     my_pipeline = load("src/tennis_prediction.joblib")
 
     scheduled_matches = q_get_scheduled_matches()
+    scheduled_matches = scheduled_matches.astype(get_match_dtypes(scheduled_matches))
 
     predictions = get_predictions(scheduled_matches, my_pipeline)
 

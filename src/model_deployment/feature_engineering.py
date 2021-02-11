@@ -171,7 +171,7 @@ def add_features(scheduled_matches, past_matches):
         features["p2_win_ratio_last5"], features["p2_win_ratio_last20"]
 
     ) = zip(*scheduled_matches[["datetime", "p1_id", "p2_id"]]
-            .apply(add_features_p1, args=(past_matches), axis=1))
+            .apply(add_features_p1, args=(past_matches,), axis=1))
 
     features["p1_is_home"] = scheduled_matches.apply(lambda match: match["p1_birth_country"] == match["country"],
                                                      axis=1)
