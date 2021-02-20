@@ -6,7 +6,8 @@ import time
 from selenium.common.exceptions import NoSuchElementException
 from datetime import datetime
 from src.log import log
-from src.utils import get_chrome_driver
+from src.queries.country_queries import country_exists, find_country_with_flag_code
+from src.utils import get_chrome_driver, get_mongo_client
 
 
 def scrap_player_id(player_name):
@@ -245,7 +246,8 @@ def scrap_player(atp_id):
         player["weight"] = weight
         player["height"] = height
 
-        player["flag_code"] = driver.find_element_by_xpath("//div[@class='player-flag-code']").text
+        flag_code = driver.find_element_by_xpath("//div[@class='player-flag-code']").text
+        player["flag_code"] = flag_code
         
         birth_city = birth_country = None
         try:
@@ -255,8 +257,18 @@ def scrap_player(atp_id):
             if len(b_matched_location) > 1:
                 birth_city = b_matched_location[0]
                 birth_country = b_matched_location[-1]
+
+                if not country_exists(birth_country):
+                    raise NoSuchElementException("birth_country_not_found")
+            else:
+                raise NoSuchElementException("birth_country_not_found")
+
         except NoSuchElementException:
             pass
+            # Couldn't find player birth place, Setting birth_country with flag_code
+            birth_country = find_country_with_flag_code(flag_code)
+            if birth_country is None:
+                log("scrap_player", "Couldn't find birth country for player '{0}'".format(atp_id))
 
         player["birth_city"] = birth_city
         player["birth_country"] = birth_country

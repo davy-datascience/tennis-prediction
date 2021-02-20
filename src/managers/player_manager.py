@@ -5,7 +5,7 @@ from datetime import datetime
 from src.log import log
 from src.data_collection.scrap_players import scrap_player_id, scrap_player
 from src.managers.player_rank_manager import retrieve_player_rank_info
-from src.queries.player_queries import find_player_by_id, q_create_player
+from src.queries.player_queries import find_player_by_id, q_create_player, q_update_player
 from src.utils import get_chrome_driver
 
 
@@ -24,6 +24,10 @@ def create_player(player):
     inserted_id = q_create_player(player.to_dict())
 
     log("player_created", inserted_id)
+
+
+def update_player(player):
+    return q_update_player(player)
 
 
 def add_player_info(match):

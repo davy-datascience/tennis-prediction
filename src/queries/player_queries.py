@@ -48,3 +48,20 @@ def q_create_player(player):
     result = collection.insert_one(player)
 
     return result.inserted_id
+
+
+def q_update_player(player):
+
+    collection = get_player_collection()
+
+    # Add updated datetime
+    player["updated"] = datetime.utcnow()
+
+    player_dict = player.to_dict()
+
+    result = collection.find_one_and_update(
+        {"flash_id": player["flash_id"]},
+        {"$set": player_dict}
+    )
+
+    return result is not None
