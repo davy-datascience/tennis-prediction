@@ -368,7 +368,7 @@ def scrap_matches_at_date(matches_date):
                 tournament = None
                 continue
 
-            tournament_name_regex = re.search(r"^(.*) \((.*)\)", name)
+            tournament_name_regex = re.search(r"^(.*) \((.*)\),", name)
             tournament_name = tournament_name_regex.group(1)
             tournament_country = tournament_name_regex.group(2)
             tournament_found = find_tournament_by_name(tournament_name)
