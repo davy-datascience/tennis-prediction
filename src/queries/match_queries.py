@@ -1,11 +1,9 @@
 import pandas as pd
-import numpy as np
 
 from datetime import datetime
 from bson import ObjectId
-from src.utils import get_mongo_client
+from src.utils import get_mongo_client, PandasEncoder, get_dataframe_json
 from bson.json_util import loads
-from json import JSONEncoder
 
 
 def get_matches_collection():
@@ -26,29 +24,6 @@ def get_match_ordered_attributes(matches):
             attributes.append(attribute)
 
     return attributes
-
-
-class MatchEncoder(JSONEncoder):
-    def default(self, obj):
-        # print(type(obj))
-        if pd.isna(obj):
-            return None
-        elif isinstance(obj, datetime):
-            return {"$date": obj.timestamp() * 1000}
-        elif isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, np.object):
-            return str(obj)
-        else:
-            return obj.__dict__
-
-
-def get_matches_json(matches):
-    return loads(MatchEncoder().encode(matches.to_dict('records')))
 
 
 def get_embedded_matches_json(matches):
@@ -151,7 +126,7 @@ def get_embedded_matches_json(matches):
         if has_pred:
             matches_dict[i]["prediction"] = matches_prediction.iloc[i:i + 1].to_dict('records')[0]
 
-    matches_json = loads(MatchEncoder().encode(matches_dict))
+    matches_json = loads(PandasEncoder().encode(matches_dict))
 
     return matches_json
 
@@ -169,7 +144,7 @@ def record_matches(matches):
     matches["updated"] = now
 
     # Insert new matches
-    matches_json = get_matches_json(matches)
+    matches_json = get_dataframe_json(matches)
     result = collection.insert_many(matches_json)
 
     return result.acknowledged

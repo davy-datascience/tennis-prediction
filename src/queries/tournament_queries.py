@@ -46,15 +46,18 @@ def find_tournament_by_id(tour_id):
     return pd.Series(tournament_dict) if tournament_dict else None
 
 
-def q_update_tournament(_id, tournament):
+def q_update_tournament(tournament_dict):
     collection = get_tournament_collection()
 
+    _id = tournament_dict["_id"]
+    tournament_dict.pop("_id")
+
     # Add updated datetime
-    tournament["updated"] = datetime.utcnow()
+    tournament_dict["updated"] = datetime.utcnow()
 
     collection.find_one_and_update(
         {"_id": ObjectId(_id)},
-        {"$set": tournament}
+        {"$set": tournament_dict}
     )
 
 

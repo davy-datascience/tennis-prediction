@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from src.log import log
 from src.queries.tournament_queries import find_tournament_by_id, q_update_tournament, q_create_tournament
-from src.utils import get_chrome_driver, get_mongo_client
+from src.utils import get_chrome_driver, get_dataframe_json
 
 
 def search_all_tournaments_atptour():
@@ -249,7 +249,9 @@ def scrap_tournament(tournament, date):
 
 def update_tournament(tournament):
     try:
-        q_update_tournament(tournament["_id"], tournament.drop(labels=["_id"]).to_dict())
+        tournaments_json = get_dataframe_json(pd.DataFrame(tournament).T)
+        q_update_tournament(tournaments_json[0])
+
         # TODO Delete next print
         print("tournament '{0}' has been updated".format(tournament["_id"]))
     except Exception as ex:

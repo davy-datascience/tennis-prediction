@@ -1,8 +1,13 @@
 import configparser
+import pandas as pd
+import numpy as np
 
 from pymongo import MongoClient
 from selenium import webdriver
 from numba import jit
+from bson.json_util import loads
+from json import JSONEncoder
+from datetime import datetime
 
 
 def element_has_class(web_element, class_name):
@@ -46,6 +51,29 @@ def get_mongo_client():
     config.read("src/config.ini")
     mongo_client = config['mongo']['client']
     return MongoClient(mongo_client)
+
+
+class PandasEncoder(JSONEncoder):
+    def default(self, obj):
+        # print(type(obj))
+        if pd.isna(obj):
+            return None
+        elif isinstance(obj, datetime):
+            return {"$date": obj.timestamp() * 1000}
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.object):
+            return str(obj)
+        else:
+            return obj.__dict__
+
+
+def get_dataframe_json(dataframe):
+    return loads(PandasEncoder().encode(dataframe.to_dict('records')))
 
 
 @jit
