@@ -48,14 +48,6 @@ def get_match_dtypes(matches):
     return dtypes
 
 
-@DeprecationWarning
-def find_by_class(class_name, driver):
-    try:
-        return driver.find_element_by_class_name(class_name).text
-    except NoSuchElementException:
-        return None
-
-
 def find_by_xpath(xpath, driver):
     try:
         return driver.find_element_by_xpath(xpath).text
@@ -322,14 +314,7 @@ def delete_match(_id):
         log("match_delete", "match '{0}' not deleted".format(_id))
 
 
-def scrap_matches_at_date(matches_date):
-    driver = get_chrome_driver()
-    match_url = "https://www.flashscore.com/tennis"
-    driver.get(match_url)
-
-    '''datepick = driver.find_element_by_class_name('calendar__datepicker')
-        datepickdate = driver.find_element_by_xpath("//div[@class='calendar__datepicker--dates']/div[2]")'''
-
+def navigate_to_date(driver, matches_date):
     now = datetime.now()
     today = now.date()
 
@@ -348,170 +333,199 @@ def scrap_matches_at_date(matches_date):
             tomorrow.click()
             time.sleep(2)
 
+
+def get_flash_tournaments_from_menu(driver):
+    el = driver.find_element_by_xpath("//a[@id='lmenu_5724']")
+    driver.execute_script("arguments[0].click();", el)
+    time.sleep(1)
+
+    flash_names = []
+    flash_ids = []
+    tournaments_info = driver.find_elements_by_xpath("//div[@id='category-left-menu']/div/div/span/a")
+
+    for tournament_info in tournaments_info:
+        link = tournament_info.get_attribute("href")
+        tournament_regex = re.search("atp-singles/(.+)$", link)
+        if tournament_regex:
+            flash_names.append(tournament_info.get_property("text"))
+            flash_id = tournament_regex.group(1)
+            flash_ids.append(flash_id)
+
+    flash_tournaments = pd.DataFrame({"name": flash_names, "flash_id": flash_ids})
+
+    return flash_tournaments
+
+
+def get_tournament_from_row(driver, elem, matches_date):
+    tournament = None
+    # Look for atp-singles tournaments only -> ignore others
+    category = elem.find_element_by_class_name("event__title--type").text
+    if category != "ATP - SINGLES":
+        return None
+
+    name = elem.find_element_by_class_name("event__title--name").text
+
+    # Check if tournament matches are in qualification stage -> ignore qualifications
+    qualification_regex = re.search("Qualification", name)
+    if qualification_regex:
+        return None
+
+    tournament_name_regex = re.search(r"^([^(]*) \(([^)]*)\)", name)
+    tournament_name = tournament_name_regex.group(1)
+    tournament_country = tournament_name_regex.group(2)
+    tournament_found = find_tournament_by_name(tournament_name)
+
+    if tournament_found is not None:
+        # Tournament exists
+        if tournament_found["start_date"].year != datetime.now().year:
+            # Tournament to be updated
+            tournament = scrap_tournament(tournament_found, matches_date)
+            if tournament is not None:
+                print("updating tournament {0}".format(tournament["flash_id"]))
+                update_tournament(tournament)
+        else:
+            # Tournament exists and is up-to-date
+            tournament = tournament_found
+
+    else:
+        # New tournament to be scrapped
+
+        if tournament_name.startswith("Davis Cup"):
+            print("Ignoring Davis Cup")
+            return None
+
+        # Look for tournament id in tournaments menu
+        flash_tournaments = get_flash_tournaments_from_menu(driver)
+
+        tournament_matched = flash_tournaments[flash_tournaments["name"] == tournament_name]
+
+        if len(tournament_matched.index) != 1:
+            log("scrap_new_tournament", "Couldn't find flashscore tournament id for '{0}'"
+                .format(tournament_name))
+            return None
+
+        tournament_id = tournament_matched.iloc[0]["flash_id"]
+
+        tournament_scrapped = scrap_tournament(pd.Series(
+            {"flash_id": tournament_id,
+             "flash_name": tournament_name,
+             "country": tournament_country
+             }
+        ), matches_date)
+
+        if tournament_scrapped is not None:
+            create_tournament(tournament_scrapped)
+            tournament = tournament_scrapped
+
+    return tournament
+
+
+def find_match_status(elem):
+    match_status = None
+    if element_has_class(elem, "event__match--live"):
+        match_status = MatchStatus.Live
+    else:
+        try:
+            elem.find_element_by_class_name("event__time")
+            # Match is scheduled
+            match_status = MatchStatus.Scheduled
+        except NoSuchElementException:
+            # Match is not scheduled
+            pass
+
+    if match_status is None:
+        status_str = elem.find_element_by_class_name("event__stage--block").text
+        if status_str == "Finished":
+            match_status = MatchStatus.Finished
+        elif status_str == "Finished\n(retired)":
+            match_status = MatchStatus.Retired
+        elif status_str == "Walkover":
+            match_status = MatchStatus.Walkover
+        elif status_str == "Cancelled":
+            match_status = MatchStatus.Cancelled
+
+    return match_status
+
+
+def process_match_row(elem, matches_date):
+    elem_id = elem.get_attribute("id")
+    match_id_regex = re.search("^._._(.*)$", elem_id)
+    match_id = match_id_regex.group(1)
+
+    match_status = find_match_status(elem)
+
+    if match_status is None:
+        print("Status not found for match '{0}'".format(match_id))
+        return
+
+    match_found = q_find_match_by_id(match_id)
+
+    if match_found is not None:
+        # Match exists
+        if MatchStatus[match_found["status"]] not in [MatchStatus.Finished, MatchStatus.Retired]:
+            # Match is not recorded as 'finished'
+            if match_status in [MatchStatus.Finished, MatchStatus.Retired]:
+                # Match is truely finished
+                match = scrap_match_flashscore(match_id, match_status)
+                match["_id"] = match_found["_id"]
+                update_match(match)
+
+            elif match_status in [MatchStatus.Walkover, MatchStatus.Cancelled]:
+                # Match has been canceled
+                delete_match(match_found["_id"])
+                print("Delete match '{0}'".format(match_id))
+                pass
+            elif match_status == MatchStatus.Scheduled:
+                # Updating match datetime if changed
+                time_elem = elem.find_element_by_class_name("event__time").text
+                time_regex = re.search(r"(\d{2}):(\d{2})$", time_elem)
+                hour = int(time_regex.group(1))
+                minute = int(time_regex.group(2))
+                match_date = datetime(matches_date.year, matches_date.month, matches_date.day, hour, minute)
+
+                if match_found["datetime"] != match_date:
+                    match_dict = {'datetime': match_date, '_id': match_found["_id"]}
+                    match = pd.Series(match_dict)
+                    print("UPDATING DATETIME match '{0}'".format(match_found["match_id"]))
+                    update_match(match)
+
+            else:
+                # TODO (pas prioritaire) gérer update match live
+                pass
+
+    else:
+        # Match doesn't exist
+        match = None
+        if match_status in [MatchStatus.Scheduled, MatchStatus.Finished, MatchStatus.Retired]:
+            # Scrap match preview
+            match = scrap_match_flashscore(match_id, match_status)
+
+            if match is None:
+                return
+
+            create_match(match)
+
+
+def scrap_matches_at_date(matches_date):
+    driver = get_chrome_driver()
+    match_url = "https://www.flashscore.com/tennis"
+    driver.get(match_url)
+
+    navigate_to_date(driver, matches_date)
+
     tournament = None
     elements = driver.find_elements_by_xpath("//div[@class='sportName tennis']/div")
     for elem in elements:
         if element_has_class(elem, "event__header"):
             # Tournament header
-            tournament = None
-            # Look for atp-singles tournaments only -> ignore others
-            category = elem.find_element_by_class_name("event__title--type").text
-            if category != "ATP - SINGLES":
-                tournament = None
-                continue
-
-            name = elem.find_element_by_class_name("event__title--name").text
-
-            # Check if tournament matches are in qualification stage -> ignore qualifications
-            qualification_regex = re.search("Qualification", name)
-            if qualification_regex:
-                tournament = None
-                continue
-
-            tournament_name_regex = re.search(r"^([^(]*) \(([^)]*)\)", name)
-            tournament_name = tournament_name_regex.group(1)
-            tournament_country = tournament_name_regex.group(2)
-            tournament_found = find_tournament_by_name(tournament_name)
-
-            if tournament_found is not None:
-                # Tournament exists
-                if tournament_found["start_date"].year != datetime.now().year:
-                    # Tournament to be updated
-                    tournament = scrap_tournament(tournament_found, matches_date)
-                    if tournament is not None:
-                        print("updating tournament {0}".format(tournament["flash_id"]))
-                        update_tournament(tournament)
-                else:
-                    # Tournament exists and is up-to-date
-                    tournament = tournament_found
-
-            else:
-                # New tournament to be scrapped
-
-                # Find flash_id in "current tournaments" section
-                el = driver.find_element_by_xpath("//a[@id='lmenu_5724']")
-                driver.execute_script("arguments[0].click();", el)
-                time.sleep(1)
-
-                flash_names = []
-                flash_ids = []
-                tournaments_info = driver.find_elements_by_xpath("//div[@id='category-left-menu']/div/div/span/a")
-
-                for tournament_info in tournaments_info:
-                    link = tournament_info.get_attribute("href")
-                    tournament_regex = re.search("atp-singles/(.+)$", link)
-                    if tournament_regex:
-                        flash_names.append(tournament_info.get_property("text"))
-                        flash_id = tournament_regex.group(1)
-                        flash_ids.append(flash_id)
-
-                flash_tournaments = pd.DataFrame({"name": flash_names, "flash_id": flash_ids})
-
-                tournament_matched = flash_tournaments[flash_tournaments["name"] == tournament_name]
-
-                if len(tournament_matched.index) != 1:
-                    log("scrap_new_tournament", "Couldn't find flashscore tournament id for '{0}'"
-                        .format(tournament_name))
-                    continue
-
-                tournament_id = tournament_matched.iloc[0]["flash_id"]
-
-                print("Creating tournament {0}".format(tournament_id))
-
-                tournament_scrapped = scrap_tournament(pd.Series(
-                    {"flash_id": tournament_id,
-                     "flash_name": tournament_name,
-                     "country": tournament_country
-                     }
-                ), matches_date)
-
-                if tournament_scrapped is not None:
-                    create_tournament(tournament_scrapped)
-                    tournament = tournament_scrapped
-
+            tournament = get_tournament_from_row(driver, elem, matches_date)
         else:
             # Match row
             if tournament is None:
                 # Match is not to be retrieved
                 continue
 
-            elem_id = elem.get_attribute("id")
-            match_id_regex = re.search("^._._(.*)$", elem_id)
-            match_id = match_id_regex.group(1)
-
-            match_status = None
-            if element_has_class(elem, "event__match--live"):
-                match_status = MatchStatus.Live
-            else:
-                try:
-                    elem.find_element_by_class_name("event__time")
-                    # Match is scheduled
-                    match_status = MatchStatus.Scheduled
-                except NoSuchElementException:
-                    # Match is not scheduled
-                    pass
-
-            if match_status is None:
-                status_str = elem.find_element_by_class_name("event__stage--block").text
-                if status_str == "Finished":
-                    match_status = MatchStatus.Finished
-                elif status_str == "Finished\n(retired)":
-                    match_status = MatchStatus.Retired
-                elif status_str == "Walkover":
-                    match_status = MatchStatus.Walkover
-                elif status_str == "Cancelled":
-                    match_status = MatchStatus.Cancelled
-
-            if match_status is None:
-                print("Status not found for match '{0}'".format(match_id))
-                continue
-
-            match_found = q_find_match_by_id(match_id)
-
-            if match_found is not None:
-                # Match exists
-                if MatchStatus[match_found["status"]] not in [MatchStatus.Finished, MatchStatus.Retired]:
-                    # Match is not recorded as 'finished'
-                    if match_status in [MatchStatus.Finished, MatchStatus.Retired]:
-                        # Match is truely finished
-                        match = scrap_match_flashscore(match_id, match_status)
-                        match["_id"] = match_found["_id"]
-                        update_match(match)
-
-                    elif match_status in [MatchStatus.Walkover, MatchStatus.Cancelled]:
-                        # Match has been canceled
-                        delete_match(match_found["_id"])
-                        print("Delete match '{0}'".format(match_id))
-                        pass
-                    elif match_status == MatchStatus.Scheduled:
-                        # Updating match datetime if changed
-                        time_elem = elem.find_element_by_class_name("event__time").text
-                        time_regex = re.search(r"(\d{2}):(\d{2})$", time_elem)
-                        hour = int(time_regex.group(1))
-                        minute = int(time_regex.group(2))
-                        match_date = datetime(matches_date.year, matches_date.month, matches_date.day, hour, minute)
-
-                        if match_found["datetime"] != match_date:
-                            match_dict = {'datetime': match_date, '_id': match_found["_id"]}
-                            match = pd.Series(match_dict)
-                            print("UPDATING DATETIME match '{0}'".format(match_found["match_id"]))
-                            update_match(match)
-
-                    else:
-                        # TODO (pas prioritaire) gérer update match live
-                        pass
-
-            else:
-                # Match doesn't exist
-                match = None
-                if match_status in [MatchStatus.Scheduled, MatchStatus.Finished, MatchStatus.Retired]:
-                    # Scrap match preview
-                    match = scrap_match_flashscore(match_id, match_status)
-
-                    if match is None:
-                        continue
-
-                    create_match(match)
+            process_match_row(elem, matches_date)
 
     driver.quit()
 
