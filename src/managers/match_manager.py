@@ -353,7 +353,7 @@ def scrap_matches_at_date(matches_date):
     for elem in elements:
         if element_has_class(elem, "event__header"):
             # Tournament header
-
+            tournament = None
             # Look for atp-singles tournaments only -> ignore others
             category = elem.find_element_by_class_name("event__title--type").text
             if category != "ATP - SINGLES":
@@ -368,7 +368,7 @@ def scrap_matches_at_date(matches_date):
                 tournament = None
                 continue
 
-            tournament_name_regex = re.search(r"^(.*) \((.*)\),", name)
+            tournament_name_regex = re.search(r"^([^(]*) \(([^)]*)\)", name)
             tournament_name = tournament_name_regex.group(1)
             tournament_country = tournament_name_regex.group(2)
             tournament_found = find_tournament_by_name(tournament_name)
@@ -389,21 +389,21 @@ def scrap_matches_at_date(matches_date):
                 # New tournament to be scrapped
 
                 # Find flash_id in "current tournaments" section
-                el = driver.find_element_by_xpath("//li[@id='lmenu_5724']")
-                if not element_has_class(el, "active"):
-                    driver.execute_script("arguments[0].click();", el.find_element_by_xpath("a"))
-                    time.sleep(1)
+                el = driver.find_element_by_xpath("//a[@id='lmenu_5724']")
+                driver.execute_script("arguments[0].click();", el)
+                time.sleep(1)
 
                 flash_names = []
                 flash_ids = []
-                tournaments_info = driver.find_elements_by_xpath("//li[@id='lmenu_5724']/ul/li/a")
+                tournaments_info = driver.find_elements_by_xpath("//div[@id='category-left-menu']/div/div/span/a")
 
                 for tournament_info in tournaments_info:
-                    flash_names.append(tournament_info.get_property("text"))
-
                     link = tournament_info.get_attribute("href")
-                    flash_id = re.search("atp-singles/(.+)/$", link).group(1)
-                    flash_ids.append(flash_id)
+                    tournament_regex = re.search("atp-singles/(.+)$", link)
+                    if tournament_regex:
+                        flash_names.append(tournament_info.get_property("text"))
+                        flash_id = tournament_regex.group(1)
+                        flash_ids.append(flash_id)
 
                 flash_tournaments = pd.DataFrame({"name": flash_names, "flash_id": flash_ids})
 
