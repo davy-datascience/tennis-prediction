@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from src.utils import get_mongo_client
+from utils import get_mongo_client
 
 
 def get_player_collection():

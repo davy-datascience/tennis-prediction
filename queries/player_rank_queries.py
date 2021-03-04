@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.utils import get_mongo_client
+from utils import get_mongo_client
 
 
 def record_all_player_ranks(player_ranks):

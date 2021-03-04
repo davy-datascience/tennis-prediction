@@ -1,4 +1,4 @@
-from src.utils import get_mongo_client
+from utils import get_mongo_client
 
 
 def get_country_collection():

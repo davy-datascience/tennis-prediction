@@ -19,7 +19,7 @@ def get_chrome_driver(driver=None):
 
     # Get path of chrome driver
     config = configparser.ConfigParser()
-    config.read("src/config.ini")
+    config.read("config.ini")
     chrome_driver_path = config['webdriver']['path']
 
     if driver is not None:
@@ -48,7 +48,7 @@ def get_chrome_driver(driver=None):
 
 def get_mongo_client():
     config = configparser.ConfigParser()
-    config.read("src/config.ini")
+    config.read("config.ini")
     mongo_client = config['mongo']['client']
     return MongoClient(mongo_client)
 

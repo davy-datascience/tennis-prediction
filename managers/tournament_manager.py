@@ -4,9 +4,9 @@ import pandas as pd
 import re
 from datetime import datetime, timedelta
 
-from src.log import log
-from src.queries.tournament_queries import find_tournament_by_id, q_update_tournament, q_create_tournament
-from src.utils import get_chrome_driver, get_dataframe_json
+from log import log
+from queries.tournament_queries import find_tournament_by_id, q_update_tournament, q_create_tournament
+from utils import get_chrome_driver, get_dataframe_json
 
 
 def search_all_tournaments_atptour():

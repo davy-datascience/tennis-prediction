@@ -4,15 +4,15 @@ import time
 
 from selenium.common.exceptions import NoSuchElementException
 from datetime import datetime, timedelta
-from src.log import log
+from log import log
 
-from src.classes.match_status import MatchStatus
-from src.managers.player_manager import add_player_info
-from src.managers.tournament_manager import scrap_tournament, add_tournament_info, update_tournament, create_tournament
-from src.queries.match_queries import q_find_match_by_id, q_update_match, q_create_match, q_delete_match, \
+from classes.match_status import MatchStatus
+from managers.player_manager import add_player_info
+from managers.tournament_manager import scrap_tournament, add_tournament_info, update_tournament, create_tournament
+from queries.match_queries import q_find_match_by_id, q_update_match, q_create_match, q_delete_match, \
     get_embedded_matches_json
-from src.queries.tournament_queries import find_tournament_by_name
-from src.utils import element_has_class, get_chrome_driver
+from queries.tournament_queries import find_tournament_by_name
+from utils import element_has_class, get_chrome_driver
 
 
 def get_match_dtypes(matches):

@@ -10,11 +10,11 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
 from joblib import dump, load
 
-from src.managers.match_manager import get_match_dtypes
-from src.queries.match_queries import q_get_past_matches, q_get_scheduled_matches, q_update_match, \
+from managers.match_manager import get_match_dtypes
+from queries.match_queries import q_get_past_matches, q_get_scheduled_matches, q_update_match, \
     get_embedded_matches_json
-from src.model_deployment.feature_engineering import get_categorical_cols, get_numerical_cols, add_features
-from src.utils import get_mongo_client
+from model_deployment.feature_engineering import get_categorical_cols, get_numerical_cols, add_features
+from utils import get_mongo_client
 
 
 def build_model():
@@ -90,7 +90,7 @@ def build_model():
 
     my_pipeline.fit(X, y)
 
-    dump(my_pipeline, filename="src/tennis_prediction.joblib")
+    dump(my_pipeline, filename="tennis_prediction.joblib")
 
 
 def feature_engineer():
@@ -112,7 +112,7 @@ def feature_engineer():
 
 def get_predictions(scheduled_matches, pipeline):
     config = configparser.ConfigParser()
-    config.read("src/config.ini")
+    config.read("config.ini")
     model = config['model']['version']
 
     X = scheduled_matches[get_categorical_cols() + get_numerical_cols()]
@@ -132,7 +132,7 @@ def build_predictions():
         # No new match to predict
         print("No new match to predict")
 
-    my_pipeline = load("src/tennis_prediction.joblib")
+    my_pipeline = load("tennis_prediction.joblib")
 
     scheduled_matches = q_get_scheduled_matches()
     scheduled_matches = scheduled_matches.astype(get_match_dtypes(scheduled_matches))

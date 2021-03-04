@@ -2,7 +2,7 @@ import pandas as pd
 
 from datetime import datetime
 from bson import ObjectId
-from src.utils import get_mongo_client, PandasEncoder, get_dataframe_json
+from utils import get_mongo_client, PandasEncoder, get_dataframe_json
 from bson.json_util import loads
 
 

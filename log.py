@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from src.utils import get_mongo_client
+from utils import get_mongo_client
 
 
 def get_log_collection():
