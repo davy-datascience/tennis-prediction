@@ -8,7 +8,7 @@ LOG_FILENAME = '{0}logs/update_player_ranks.out'.format(PROJECT_FOLDER)
 myFile = open(LOG_FILENAME, 'a')
 
 try:
-    sys.path.append("//")
+    sys.path.append("/home/davy/Documents/tennis-prediction/")
 
     from managers.player_rank_manager import scrap_all_player_ranks
     from log import log_to_file
