@@ -1,14 +1,11 @@
 import re
-import time
 from datetime import datetime, date
 
 import pandas as pd
 
-from src.log import log
-from src.queries.match_queries import get_matches_collection, q_update_match
-from src.queries.player_rank_queries import record_all_player_ranks, retrieve_all_player_ranks
-from src.queries.player_queries import retrieve_players
-from src.utils import get_chrome_driver
+from log import log
+from queries.player_rank_queries import record_all_player_ranks, retrieve_all_player_ranks
+from utils import get_chrome_driver
 
 
 def scrap_all_player_ranks():

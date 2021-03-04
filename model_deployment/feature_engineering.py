@@ -1,13 +1,8 @@
-import numpy as np
-import pandas as pd
-
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import _VectorizerMixin
 from sklearn.feature_selection import SelectorMixin
-from datetime import datetime
 
-from src.data_collection.data_preparation import inverse_dataset
-from src.utils import *
+from utils import *
 
 
 def add_simple_features(matches):
@@ -29,6 +24,18 @@ def add_simple_features(matches):
 
 def add_elaborated_features(matches):
     pass
+
+
+def inverse_dataset(dataset):
+    inv = dataset.copy()
+    for col in dataset.columns:
+        if col.startswith("p1") and col != "p1_wins":
+            inv[col] = dataset["p2" + col[2:]]
+        elif col.startswith("p2"):
+            inv[col] = dataset["p1" + col[2:]]
+
+    inv["p1_wins"] = np.where(dataset["p1_wins"], 0, 1)
+    return inv
 
 
 def get_player_previous_matches(p_id, match_dt, matches):
