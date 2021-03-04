@@ -77,8 +77,8 @@ def search_all_tournaments_atptour():
             except Exception as ex:
                 start_dates.append(None)
                 end_dates.append(None)
-                print(type(ex).__name__)
-                print("atp tournaments retrieval error, date_elem: '{0}'".format(date_elem))
+                #print(type(ex).__name__)
+                #print("atp tournaments retrieval error, date_elem: '{0}'".format(date_elem))
 
         tournaments_atptour = pd.DataFrame({"atp_id": atp_ids, "atp_name": atp_names,
                                             "atp_formatted_name": atp_formatted_names, "city": cities,
