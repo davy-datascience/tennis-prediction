@@ -3,12 +3,12 @@ from datetime import datetime, date
 
 import pandas as pd
 
-from log import log
+from log import log, log_to_file
 from queries.player_rank_queries import record_all_player_ranks, retrieve_all_player_ranks
 from utils import get_chrome_driver
 
 
-def scrap_all_player_ranks():
+def scrap_all_player_ranks(log_file_path):
     driver = get_chrome_driver()
     try:
         driver.get("https://www.atptour.com/en/rankings/singles")
@@ -49,14 +49,16 @@ def scrap_all_player_ranks():
         player_ranks = pd.DataFrame({"rank": ranks, "player_id": player_ids, "rank_points": rank_points})
 
         if record_all_player_ranks(player_ranks):
-            log("Player_ranks", "Player ranks successfully updated")
+            log_to_file("Player ranks successfully updated", log_file_path)
         else:
             raise Exception('Player ranks not recorded')
 
     except ValueError:
-        log("Player_ranks", "Player ranks not updated on atptour")
+        log_to_file("Player ranks not updated on atptour", log_file_path)
+        pass
     except Exception as ex:
         log("Player_ranks", str(ex))
+        pass
 
     driver.quit()
 
