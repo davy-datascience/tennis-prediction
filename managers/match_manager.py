@@ -1,10 +1,11 @@
 import pandas as pd
 import re
 import time
+import configparser
 
 from selenium.common.exceptions import NoSuchElementException
 from datetime import datetime, timedelta
-from log import log
+from log import log, log_to_file
 
 from classes.match_status import MatchStatus
 from managers.player_manager import add_player_info
@@ -13,6 +14,11 @@ from queries.match_queries import q_find_match_by_id, q_update_match, q_create_m
     get_embedded_matches_json
 from queries.tournament_queries import find_tournament_by_name
 from utils import element_has_class, get_chrome_driver
+
+
+config = configparser.ConfigParser()
+config.read("config.ini")
+LOG_FILENAME = '{0}logs/{1}'.format(config['project']['folder'], config['logs']['scrap_matches'])
 
 
 def get_match_dtypes(matches):
@@ -160,8 +166,7 @@ def scrap_match_flashscore(match_id, status):
 
         except Exception:
             msg = "Error with date format - scraping match '{}'".format(match_id)
-            print(msg)
-            log("scrap_match_flashscore", msg)
+            log_to_file(msg, LOG_FILENAME)
             raise Exception
 
         match["datetime"] = match_date
@@ -277,8 +282,8 @@ def scrap_match_flashscore(match_id, status):
             match["p2_1st_serve_ratio"] = match["p2_1st_in"] / match["p2_svpt"] if match["p2_svpt"] > 0 else None
 
     except Exception as ex:
-        log("scrap_match", "Error while scraping match id '{}'".format(match_id))
-        print(type(ex))
+        msg = "Error while scraping match id '{}'".format(match_id)
+        log_to_file(msg, LOG_FILENAME)
         match = None
 
     driver.quit()
@@ -291,7 +296,7 @@ def create_match(match):
         result = q_create_match(matches_json[0])
         if not result:
             raise Exception("Match not created")
-        print("match '{0}' has been created".format(match["match_id"]))
+        log_to_file("match '{0}' has been created".format(match["match_id"]), LOG_FILENAME)
 
     except Exception as ex:
         log("match_create", "match '{0}' couldn't be created".format(match["match_id"]), type(ex).__name__)
@@ -302,7 +307,7 @@ def update_match(match):
         matches_json = get_embedded_matches_json(pd.DataFrame(match).T)
         q_update_match(matches_json[0])
         # TODO Delete next print
-        print("match '{0}' has been updated".format(match["_id"]))
+        log_to_file("match '{0}' has been updated".format(match["_id"]), LOG_FILENAME)
     except Exception as ex:
         log("match_update", "match '{0}' couldn't be updated".format(match["match_id"]), type(ex).__name__)
 
@@ -311,7 +316,7 @@ def delete_match(_id):
     result = q_delete_match(_id)
 
     if result is None:
-        log("match_delete", "match '{0}' not deleted".format(_id))
+        log_to_file("match_delete", "match '{0}' not deleted".format(_id), LOG_FILENAME)
 
 
 def navigate_to_date(driver, matches_date):
@@ -381,7 +386,7 @@ def get_tournament_from_row(driver, elem, matches_date):
             # Tournament to be updated
             tournament = scrap_tournament(tournament_found, matches_date)
             if tournament is not None:
-                print("updating tournament {0}".format(tournament["flash_id"]))
+                log_to_file("updating tournament {0}".format(tournament["flash_id"]), LOG_FILENAME)
                 update_tournament(tournament)
         else:
             # Tournament exists and is up-to-date
