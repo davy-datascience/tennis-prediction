@@ -2,13 +2,14 @@ import re
 from datetime import datetime, date
 
 import pandas as pd
+import pickledb
 
 from log import log, log_to_file
 from queries.player_rank_queries import record_all_player_ranks, retrieve_all_player_ranks
 from utils import get_chrome_driver
 
 
-def scrap_all_player_ranks(log_file_path):
+def scrap_all_player_ranks(log_file_path, pickle_db_path):
     driver = get_chrome_driver()
     try:
         driver.get("https://www.atptour.com/en/rankings/singles")
@@ -50,6 +51,8 @@ def scrap_all_player_ranks(log_file_path):
 
         if record_all_player_ranks(player_ranks):
             log_to_file("Player ranks successfully updated", log_file_path)
+            db = pickledb.load(pickle_db_path, True)
+            db.set("update_player_ranks_date", date_str)
         else:
             raise Exception('Player ranks not recorded')
 
@@ -77,7 +80,6 @@ def retrieve_player_rank_info(player_id, all_player_ranks=None):
         return None, None
 
 
-# function q_update_match has changed
 '''
 @DeprecationWarning
 def fix_ranks():
