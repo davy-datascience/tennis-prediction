@@ -1,9 +1,11 @@
 import configparser
 import pandas as pd
 import numpy as np
+import os
 
 from pymongo import MongoClient
 from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
 from numba import jit
 from bson.json_util import loads
 from json import JSONEncoder
@@ -17,10 +19,8 @@ def element_has_class(web_element, class_name):
 def get_chrome_driver(driver=None):
     """Get a new chrome driver or replace it to pass through DDOS protection"""
 
-    # Get path of chrome driver
-    config = configparser.ConfigParser()
-    config.read("config.ini")
-    chrome_driver_path = config['webdriver']['path']
+    # Set log level to 'warning'
+    os.environ['WDM_LOG_LEVEL'] = '30'
 
     if driver is not None:
         # Quit existing driver
@@ -31,14 +31,17 @@ def get_chrome_driver(driver=None):
     # Instantiate new chrome driver
     try:
         chrome_options = webdriver.ChromeOptions()
-        # Don't use because don't open 2 windows(matches + match_detail) while scrapping matches
         # chrome_options.add_argument('--remote-debugging-port=9222')
 
-        # chrome_options.add_argument('--headless')
+        # Set 'user-agent' to pass through DDOS protection while --headless
+        chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36")
+        chrome_options.add_argument('--headless')
+
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
-        driver = webdriver.Chrome(chrome_driver_path, options=chrome_options)
-        # driver = webdriver.Chrome(chrome_driver_path)
+
+        driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
+
     except Exception as ex:
         print("CHROME DRIVER CRASHED !!!")
         print(ex)
