@@ -153,16 +153,13 @@ def record_matches(matches):
 def normalize_matches(match_list):
     matches = pd.json_normalize(match_list)
 
-    '''for embedded in ["p1", "p2", "tournament", "score", "stats", "features", "prediction"]:
-        matches.columns = matches.columns.str.replace(rf'^{embedded}\.', '') '''
-
-    matches.columns = matches.columns.str.replace(r'^p1\.', '')
-    matches.columns = matches.columns.str.replace(r'^p2\.', '')
-    matches.columns = matches.columns.str.replace(r'^tournament\.', '')
-    matches.columns = matches.columns.str.replace(r'^score\.', '')
-    matches.columns = matches.columns.str.replace(r'^stats\.', '')
-    matches.columns = matches.columns.str.replace(r'^features\.', '')
-    matches.columns = matches.columns.str.replace(r'^prediction\.', '')
+    matches.columns = matches.columns.str.replace(r'^p1\.', '', regex=True)
+    matches.columns = matches.columns.str.replace(r'^p2\.', '', regex=True)
+    matches.columns = matches.columns.str.replace(r'^tournament\.', '', regex=True)
+    matches.columns = matches.columns.str.replace(r'^score\.', '', regex=True)
+    matches.columns = matches.columns.str.replace(r'^stats\.', '', regex=True)
+    matches.columns = matches.columns.str.replace(r'^features\.', '', regex=True)
+    matches.columns = matches.columns.str.replace(r'^prediction\.', '', regex=True)
 
     return matches
 
