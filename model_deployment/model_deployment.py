@@ -10,11 +10,15 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
 from joblib import dump, load
 
+from log import log_to_file
 from managers.match_manager import get_match_dtypes
 from queries.match_queries import q_get_past_matches, q_get_scheduled_matches, q_update_match, \
-    get_embedded_matches_json
+    get_embedded_matches_json, get_matches_collection
 from model_deployment.feature_engineering import get_categorical_cols, get_numerical_cols, add_features
-from utils import get_mongo_client
+
+config = configparser.ConfigParser()
+config.read("config.ini")
+LOG_FILENAME = '{0}logs/{1}'.format(config['project']['folder'], config['logs']['predict_matches'])
 
 
 def build_model():
@@ -94,6 +98,13 @@ def build_model():
 
 
 def feature_engineer():
+    collection = get_matches_collection()
+
+    if collection.count_documents({"features": {"$exists": False}, "status": "Scheduled"}) == 0:
+        # No new match to build features
+        log_to_file("No new match to build features", LOG_FILENAME)
+        return
+
     scheduled_matches = q_get_scheduled_matches()
     scheduled_matches = scheduled_matches.astype(get_match_dtypes(scheduled_matches))
 
@@ -124,13 +135,12 @@ def get_predictions(scheduled_matches, pipeline):
 
 
 def build_predictions():
-    mongo_client = get_mongo_client()
-    database = mongo_client["tennis"]
-    collection = database["matches"]
+    collection = get_matches_collection()
 
     if collection.count_documents({"prediction": {"$exists": False}, "status": "Scheduled"}) == 0:
         # No new match to predict
-        print("No new match to predict")
+        log_to_file("No new match to predict", LOG_FILENAME)
+        return
 
     my_pipeline = load("tennis_prediction.joblib")
 

@@ -15,7 +15,6 @@ from queries.match_queries import q_find_match_by_id, q_update_match, q_create_m
 from queries.tournament_queries import find_tournament_by_name
 from utils import element_has_class, get_chrome_driver
 
-
 config = configparser.ConfigParser()
 config.read("config.ini")
 LOG_FILENAME = '{0}logs/{1}'.format(config['project']['folder'], config['logs']['scrap_matches'])
