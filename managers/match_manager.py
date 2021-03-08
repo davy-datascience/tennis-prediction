@@ -490,7 +490,6 @@ def process_match_row(elem, matches_date):
                 if match_found["datetime"] != match_date:
                     match_dict = {'datetime': match_date, '_id': match_found["_id"]}
                     match = pd.Series(match_dict)
-                    print("UPDATING DATETIME match '{0}'".format(match_found["match_id"]))
                     update_match(match)
 
             else:

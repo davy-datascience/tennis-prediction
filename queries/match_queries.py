@@ -217,8 +217,6 @@ def q_update_match(match_dict):
     _id = match_dict["_id"]
     match_dict.pop("_id")
 
-    print("updating match '{0}'".format(_id))
-
     # Add updated datetime
     match_dict["updated"] = datetime.utcnow()
 
@@ -226,25 +224,6 @@ def q_update_match(match_dict):
         {"_id": ObjectId(_id)},
         {"$set": match_dict}
     )
-
-
-'''def q_update_match_datetime(match):
-    collection = get_matches_collection()
-
-    _id = match["_id"]
-    match_dict = match.drop(labels=["_id"]).to_dict()
-
-    print("updating match '{0}'".format(_id))
-
-    # Add updated datetime
-    match_dict["updated"] = datetime.utcnow()
-
-    match_json = loads(MatchEncoder().encode(match_dict))
-
-    collection.find_one_and_update(
-        {"_id": ObjectId(_id)},
-        {"$set": match_json}
-    )'''
 
 
 def q_delete_match(_id):
