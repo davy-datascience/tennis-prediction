@@ -395,7 +395,7 @@ def get_tournament_from_row(driver, elem, matches_date):
         # New tournament to be scrapped
 
         if tournament_name.startswith("Davis Cup"):
-            print("Ignoring Davis Cup")
+            # print("Ignoring Davis Cup")
             return None
 
         # Look for tournament id in tournaments menu
