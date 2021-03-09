@@ -172,13 +172,16 @@ def scrap_match_flashscore(match_id, status):
 
         match["status"] = status.name
 
-        if status in [MatchStatus.Finished, MatchStatus.Retired]:
-            participant_elems = driver.find_elements_by_xpath("//a[starts-with(@class, 'participantName___')]")
+        if status in [MatchStatus.Finished, MatchStatus.Retired, MatchStatus.Live]:
 
-            if len(participant_elems[-1].find_elements_by_xpath("strong")) == 1:
-                match["p1_wins"] = False
-            else:
-                match["p1_wins"] = True
+            if status != MatchStatus.Live:
+                # Set match winner only if match has already finished
+                participant_elems = driver.find_elements_by_xpath("//a[starts-with(@class, 'participantName___')]")
+
+                if len(participant_elems[-1].find_elements_by_xpath("strong")) == 1:
+                    match["p1_wins"] = False
+                else:
+                    match["p1_wins"] = True
 
             duration_elem = driver.find_element_by_xpath("//div[contains(@class, 'time--overall')]").text
             duration_regex = re.search("([0-9]+):([0-9]+)", duration_elem)
@@ -305,7 +308,6 @@ def update_match(match):
     try:
         matches_json = get_embedded_matches_json(pd.DataFrame(match).T)
         q_update_match(matches_json[0])
-        # TODO Delete next print
         log_to_file("match '{0}' has been updated".format(match["_id"]), LOG_FILENAME)
     except Exception as ex:
         log("match_update", "match '{0}' couldn't be updated".format(match["match_id"]), type(ex).__name__)
@@ -467,9 +469,9 @@ def process_match_row(elem, matches_date):
     if match_found is not None:
         # Match exists
         if MatchStatus[match_found["status"]] not in [MatchStatus.Finished, MatchStatus.Retired]:
-            # Match is not recorded as 'finished'
-            if match_status in [MatchStatus.Finished, MatchStatus.Retired]:
-                # Match is truely finished
+            # Match is not recorded as 'finished' in database
+            if match_status in [MatchStatus.Finished, MatchStatus.Retired, MatchStatus.Live]:
+                # Match is finished or live
                 match = scrap_match_flashscore(match_id, match_status)
                 match["_id"] = match_found["_id"]
                 update_match(match)
@@ -491,11 +493,6 @@ def process_match_row(elem, matches_date):
                     match_dict = {'datetime': match_date, '_id': match_found["_id"]}
                     match = pd.Series(match_dict)
                     update_match(match)
-
-            else:
-                # TODO (pas prioritaire) gérer update match live
-                pass
-
     else:
         # Match doesn't exist
         match = None

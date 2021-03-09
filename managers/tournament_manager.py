@@ -252,7 +252,6 @@ def update_tournament(tournament):
         tournaments_json = get_dataframe_json(pd.DataFrame(tournament).T)
         q_update_tournament(tournaments_json[0])
 
-        # TODO Delete next print
         print("tournament '{0}' has been updated".format(tournament["_id"]))
     except Exception as ex:
         log("tournament_update", "tournament '{0}' couldn't be updated".format(tournament["flash_id"])
@@ -284,6 +283,5 @@ def create_tournament(tournament):
     result = q_create_tournament(tournament.to_dict())
     if result is None:
         log("create_tournament", "couldn't create tournament '{0}'".format(tournament["flash_id"]))
-    # TODO Delete else
     else:
         print("tournament '{0}' has been created".format(tournament["flash_id"]))
