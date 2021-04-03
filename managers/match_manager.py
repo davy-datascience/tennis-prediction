@@ -443,12 +443,12 @@ def find_match_status(elem):
         status_str = elem.find_element_by_class_name("event__stage--block").text
         if status_str == "Finished":
             match_status = MatchStatus.Finished
-        elif status_str == "Finished\n(retired)":
-            match_status = MatchStatus.Retired
         elif status_str == "Walkover":
             match_status = MatchStatus.Walkover
         elif status_str == "Cancelled":
             match_status = MatchStatus.Cancelled
+        elif "retired" in status_str:
+            match_status = MatchStatus.Retired
 
     return match_status
 
@@ -496,7 +496,7 @@ def process_match_row(elem, matches_date):
     else:
         # Match doesn't exist
         match = None
-        if match_status in [MatchStatus.Scheduled, MatchStatus.Finished, MatchStatus.Retired]:
+        if match_status in [MatchStatus.Scheduled, MatchStatus.Finished, MatchStatus.Retired, MatchStatus.Live]:
             # Scrap match preview
             match = scrap_match_flashscore(match_id, match_status)
 

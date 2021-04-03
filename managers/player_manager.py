@@ -230,9 +230,13 @@ def scrap_player_name_flashscore(flash_id, flash_url):
     return player_name
 
 
-def scrap_new_player(flash_id, flash_url):
+def scrap_new_player(flash_id, flash_url, manual_atp_id=None):
     player_full_name = scrap_player_name_flashscore(flash_id, flash_url)
-    player_full_name, atp_id = scrap_player_id(player_full_name)
+    atp_id = None
+    if manual_atp_id is None:
+        player_full_name, atp_id = scrap_player_id(player_full_name)
+    else:
+        atp_id = manual_atp_id
     player = scrap_player(atp_id)
 
     if player is None:

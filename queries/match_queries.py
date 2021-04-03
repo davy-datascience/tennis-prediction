@@ -184,6 +184,7 @@ def q_get_scheduled_matches():
     collection = get_matches_collection()
 
     match_list = list(collection.find({"status": "Scheduled"}))
+    # match_list = list(collection.find({"datetime": {"$gte": datetime(2021, 4, 2)}}))
 
     return normalize_matches(match_list)
 
