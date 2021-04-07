@@ -162,7 +162,7 @@ def search_tournament_atptour(tournament, date_of_matches):
             # Tournament not found by name. Try to find tournament by start date, end date and country
             tour_matched = tournaments_atptour[(tournaments_atptour["start_date"] <= pd.Timestamp(date_of_matches))
                                                & (tournaments_atptour["end_date"] >= pd.Timestamp(date_of_matches))
-                                               & (tournaments_atptour["country"] >= country)
+                                               & (tournaments_atptour["country"] == country)
                                                ]
 
         # New tournament references found
