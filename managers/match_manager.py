@@ -107,13 +107,13 @@ def find_tb_score(player, set_nb, driver):
 
 
 def scrap_player_ids(driver):
-    p1_elem = driver.find_element_by_xpath("//div[@id='detail']/div[4]/div[1]/div[4]/div[2]/a") \
+    p1_elem = driver.find_element_by_xpath("//div[@id='detail']/div[4]/div[2]/div[4]/div[2]/a") \
         .get_attribute("href")
     p1_regex = re.search("/player/(.+)/(.+)$", p1_elem)
     p1_url = p1_regex.group(1)
     p1_id = p1_regex.group(2)
 
-    p2_elem = driver.find_element_by_xpath("//div[@id='detail']/div[4]/div[3]/div[4]/div[1]/a") \
+    p2_elem = driver.find_element_by_xpath("//div[@id='detail']/div[4]/div[4]/div[4]/div[1]/a") \
         .get_attribute("href")
     p2_regex = re.search("/player/(.+)/(.+)$", p2_elem)
     p2_url = p2_regex.group(1)
@@ -133,7 +133,7 @@ def scrap_match_flashscore(match_id, status):
         time.sleep(1)
 
         tournament_elem = driver.find_element_by_xpath(
-            "//div[contains(@class, 'tournamentHeaderDescription')]/div[1]/span[2]/a"
+            "//div[contains(@class, 'tournamentHeaderDescription')]/div[1]/span[3]/a"
         )
 
         tournament_regex = re.search("atp-singles/(.*)/", tournament_elem.get_attribute("href"))
@@ -152,7 +152,7 @@ def scrap_match_flashscore(match_id, status):
 
         match_date = None
         try:
-            match_date_elem = driver.find_element_by_xpath("//div[@id='detail']/div[3]/div[2]").text
+            match_date_elem = driver.find_element_by_xpath("//div[@id='detail']/div[4]/div[1]").text
             match_date_regex = re.search(r"^([0-9]+)\.([0-9]+)\.([0-9]+) ([0-9]+):([0-9]+)$", match_date_elem)
             day = int(match_date_regex.group(1))
             month = int(match_date_regex.group(2))
