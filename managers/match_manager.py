@@ -172,7 +172,8 @@ def scrap_match_flashscore(match_id, status):
 
         match["status"] = status.name
 
-        if status in [MatchStatus.Finished, MatchStatus.Retired, MatchStatus.Live]:
+        if status in [MatchStatus.Finished, MatchStatus.Retired, MatchStatus.Live, MatchStatus.Awarded,
+                      MatchStatus.Interrupted]:
 
             if status != MatchStatus.Live:
                 # Set match winner only if match has already finished
@@ -450,6 +451,9 @@ def find_match_status(elem):
         elif "retired" in status_str:
             match_status = MatchStatus.Retired
 
+        if match_status is None:
+            log("Status Not Found", "'{0}'".format(status_str))
+
     return match_status
 
 
@@ -461,16 +465,19 @@ def process_match_row(elem, matches_date):
     match_status = find_match_status(elem)
 
     if match_status is None:
-        print("Status not found for match '{0}'".format(match_id))
+        msg = "Status not found for match '{0}'".format(match_id)
+        log_to_file(msg, LOG_FILENAME)
         return
 
     match_found = q_find_match_by_id(match_id)
 
     if match_found is not None:
         # Match exists
-        if MatchStatus[match_found["status"]] not in [MatchStatus.Finished, MatchStatus.Retired]:
+        if MatchStatus[match_found["status"]] not in [MatchStatus.Finished, MatchStatus.Retired, MatchStatus.Awarded]:
             # Match is not recorded as 'finished' in database
-            if match_status in [MatchStatus.Finished, MatchStatus.Retired, MatchStatus.Live]:
+            if match_status in [MatchStatus.Finished, MatchStatus.Retired, MatchStatus.Live, MatchStatus.Awarded]\
+                    or (match_status == MatchStatus.Interrupted
+                        and MatchStatus[match_found["status"]] != MatchStatus.Interrupted):
                 # Match is finished or live
                 match = scrap_match_flashscore(match_id, match_status)
                 match["_id"] = match_found["_id"]
@@ -481,6 +488,7 @@ def process_match_row(elem, matches_date):
                 delete_match(match_found["_id"])
                 print("Delete match '{0}'".format(match_id))
                 pass
+
             elif match_status == MatchStatus.Scheduled:
                 # Updating match datetime if changed
                 time_elem = elem.find_element_by_class_name("event__time").text
@@ -496,7 +504,7 @@ def process_match_row(elem, matches_date):
     else:
         # Match doesn't exist
         match = None
-        if match_status in [MatchStatus.Scheduled, MatchStatus.Finished, MatchStatus.Retired, MatchStatus.Live]:
+        if match_status not in [MatchStatus.Walkover, MatchStatus.Cancelled]:
             # Scrap match preview
             match = scrap_match_flashscore(match_id, match_status)
 

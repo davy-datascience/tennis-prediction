@@ -8,3 +8,5 @@ class MatchStatus(Enum):
     Retired = 4
     Walkover = 5
     Cancelled = 6
+    Awarded = 7
+    Interrupted = 8
