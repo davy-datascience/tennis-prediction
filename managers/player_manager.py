@@ -1,6 +1,7 @@
 import time
 import re
 import pandas as pd
+import json
 
 from datetime import datetime
 from selenium.common.exceptions import NoSuchElementException
@@ -15,26 +16,28 @@ from utils import get_chrome_driver
 def scrap_player_id(player_name):
     atptour_name = atptour_id = None
     driver = get_chrome_driver()
-    match_url = 'https://www.atptour.com/en/search-results/players?searchTerm={}'.format(player_name)
+    match_url = 'https://www.atptour.com/en/-/ajax/playersearch/PlayerUrlSearch?searchTerm={}'.format(player_name)
     driver.get(match_url)
     time.sleep(1)
 
-    elements = driver.find_elements_by_xpath("//table[@class='player-results-table']/tbody/tr/td[4]/a")
+    html = driver.find_element_by_tag_name("pre").get_attribute('innerHTML')
+    json_obj = json.loads(html)
+    elements = json_obj["items"]
     player_element = None
 
     if len(elements) == 0:
         log("player_not_found", "'{0}' not found on atptour website".format(player_name))
     else:
         for element in elements:
-            if str.lower(element.text) == str.lower(player_name):
+            if str.lower(element["Key"]) == str.lower(player_name):
                 player_element = element
                 break
 
         if player_element is None:
             player_element = elements[0]
 
-        atptour_name = player_element.text
-        href = player_element.get_attribute("href")
+        atptour_name = player_element["Key"]
+        href = player_element["Value"]
         href_regex = re.search(".+/(.*)/overview$", href)
         atptour_id = href_regex.group(1)
 
