@@ -41,7 +41,7 @@ def scrap_all_player_ranks(log_file_path, pickle_db_path):
         rank_points = [int(points.replace(",", "")) for points in rank_points]
 
         player_ids = []
-        player_elems = driver.find_elements_by_xpath("//td[@class='player-cell']/a")
+        player_elems = driver.find_elements_by_xpath("//td[@class='player-cell']/span[1]/a[1]")
         for elem in player_elems:
             href = elem.get_attribute("href")
             player_id_regex = re.search("players/.*/(.*)/overview", href)
