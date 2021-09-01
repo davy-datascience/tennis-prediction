@@ -6,11 +6,13 @@ import json
 from datetime import datetime
 from selenium.common.exceptions import NoSuchElementException
 
-from log import log
+from log import log, get_file_log, log_to_file
 from managers.player_rank_manager import retrieve_player_rank_info
 from queries.country_queries import country_exists, find_country_with_flag_code
 from queries.player_queries import find_player_by_id, q_create_player, q_update_player
 from utils import get_chrome_driver
+
+PLAYER_LOGS = get_file_log("scrap_player")
 
 
 def scrap_player_id(player_name):
@@ -26,7 +28,14 @@ def scrap_player_id(player_name):
     player_element = None
 
     if len(elements) == 0:
-        log("player_not_found", "'{0}' not found on atptour website".format(player_name))
+        names = player_name.split()
+        if len(names) > 2:
+            minimized_name = names[0] + " " + names[-1]
+            driver.quit()
+            return scrap_player_id(minimized_name)
+        msg = "'{0}' not found on atptour website".format(player_name)
+        log_to_file(msg, PLAYER_LOGS)
+        log("players", msg)
     else:
         for element in elements:
             if str.lower(element["Key"]) == str.lower(player_name):
@@ -125,7 +134,9 @@ def scrap_player(atp_id):
             # Couldn't find player birth place, Setting birth_country with flag_code
             birth_country = find_country_with_flag_code(flag_code)
             if birth_country is None:
-                log("scrap_player", "Couldn't find birth country for player '{0}'".format(atp_id))
+                msg = "Couldn't find birth country for player '{0}'".format(atp_id)
+                log_to_file(msg, PLAYER_LOGS)
+                log("players", msg)
 
         player["birth_city"] = birth_city
         player["birth_country"] = birth_country
@@ -161,7 +172,9 @@ def scrap_player(atp_id):
 
     except Exception as ex:
         player = None
-        log("player_not_found", "Couldn't scrap player : atp_id= '{}'".format(atp_id))
+        msg = "Couldn't scrap player : atp_id= '{}'".format(atp_id)
+        log_to_file(msg, PLAYER_LOGS)
+        log("players", msg)
         print(type(ex))
 
     driver.quit()
@@ -201,7 +214,9 @@ def add_player_info(match):
         create_player(p2)
 
     if p1 is None or p2 is None:
-        print("Couldn't find nor scrap players for  match '{0}'".format(match["match_id"]))
+        msg = "Couldn't find nor scrap players for match '{0}'".format(match["match_id"])
+        log_to_file(msg, PLAYER_LOGS)
+        log("players", msg)
         return
 
     match["p1_hand"] = p1["handedness"]
@@ -240,6 +255,10 @@ def scrap_new_player(flash_id, flash_url, manual_atp_id=None):
         player_full_name, atp_id = scrap_player_id(player_full_name)
     else:
         atp_id = manual_atp_id
+
+    if atp_id is None:
+        return None
+
     player = scrap_player(atp_id)
 
     if player is None:
