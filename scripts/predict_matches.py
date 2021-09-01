@@ -16,5 +16,5 @@ try:
     build_predictions()
 
 except Exception as ex:
-    myFile = open(LOG_FILENAME, 'a')
+    myFile = open(PREDICT_LOGS, 'a')
     myFile.write(str(ex) + "\n")

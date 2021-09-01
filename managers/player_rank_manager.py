@@ -4,9 +4,11 @@ from datetime import datetime, date
 import pandas as pd
 import pickledb
 
-from log import log, log_to_file
+from log import log, log_to_file, get_file_log
 from queries.player_rank_queries import record_all_player_ranks, retrieve_all_player_ranks
 from utils import get_chrome_driver
+
+RANKS_LOGS = get_file_log("update_player_ranks")
 
 
 def scrap_all_player_ranks(log_file_path, pickle_db_path):
@@ -57,9 +59,10 @@ def scrap_all_player_ranks(log_file_path, pickle_db_path):
             raise Exception('Player ranks not recorded')
 
     except ValueError:
-        log_to_file("Player ranks not updated on atptour", log_file_path)
+        # log_to_file("Player ranks not updated on atptour", log_file_path)
         pass
     except Exception as ex:
+        log_to_file("player_ranks update error", log_file_path)
         log("Player_ranks", str(ex))
         pass
 
@@ -76,7 +79,9 @@ def retrieve_player_rank_info(player_id, all_player_ranks=None):
     if len(rank_info.index) == 1:
         return rank_info.iloc[0]["rank"], rank_info.iloc[0]["rank_points"]
     else:
-        log("player_rank", "Player rank info not found for player '{0}'".format(player_id))
+        msg = "Player rank info not found for player '{0}'".format(player_id)
+        log_to_file(msg, RANKS_LOGS)
+        log("player_rank", msg)
         return None, None
 
 

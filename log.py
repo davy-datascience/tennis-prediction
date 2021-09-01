@@ -1,7 +1,12 @@
+import configparser
 import logging
-from datetime import datetime
 
+from datetime import datetime
 from utils import get_mongo_client
+
+
+config = configparser.ConfigParser()
+config.read("config.ini")
 
 
 def get_log_collection():
@@ -11,8 +16,6 @@ def get_log_collection():
 
 
 def log(label, msg, exception_type=None):
-    print("'{0}': {1}".format(label, msg))
-
     mycol = get_log_collection()
 
     log_dict = {"label": label, "message": msg, "datetime": datetime.utcnow()}
@@ -30,8 +33,22 @@ def delete_log_by_label(label):
 
 def log_to_file(msg, file_path, level=logging.INFO):
     # Log
-    logging.basicConfig(filename=file_path, level=logging.INFO,
+    formatter = logging.Formatter('%(asctime)s  %(name)s:%(levelname)s: %(message)s')
+    handler = logging.FileHandler(file_path)
+    handler.setFormatter(formatter)
+
+    logger = logging.getLogger("name")
+    logger.setLevel(level)
+    logger.addHandler(handler)
+
+    logger.log(level, "{0}".format(msg))
+
+    '''logging.basicConfig(filename=file_path, level=logging.INFO,
                         format='%(asctime)s  %(name)s:%(levelname)s: %(message)s')
-    logging.log(level, "{0}".format(msg))
+    logging.log(level, "{0}".format(msg))'''
     # Print to console
     print(msg)
+
+
+def get_file_log(name):
+    return '{0}logs/{1}'.format(config['project']['folder'], config['logs'][name])

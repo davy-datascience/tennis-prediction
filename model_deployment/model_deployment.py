@@ -1,5 +1,4 @@
 import configparser
-
 import pandas as pd
 
 from sklearn.compose import ColumnTransformer
@@ -10,15 +9,13 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
 from joblib import dump, load
 
-from log import log_to_file
+from log import log_to_file, get_file_log
 from managers.match_manager import get_match_dtypes
 from queries.match_queries import q_get_past_matches, q_get_scheduled_matches, q_update_match, \
     get_embedded_matches_json, get_matches_collection
 from model_deployment.feature_engineering import get_categorical_cols, get_numerical_cols, add_features
 
-config = configparser.ConfigParser()
-config.read("config.ini")
-LOG_FILENAME = '{0}logs/{1}'.format(config['project']['folder'], config['logs']['predict_matches'])
+PREDICT_LOGS = get_file_log("predict_matches")
 
 
 def build_model():
@@ -102,7 +99,7 @@ def feature_engineer():
 
     if collection.count_documents({"features": {"$exists": False}, "status": "Scheduled"}) == 0:
         # No new match to build features
-        log_to_file("No new match to build features", LOG_FILENAME)
+        log_to_file("No new match to build features", PREDICT_LOGS)
         return
 
     scheduled_matches = q_get_scheduled_matches()
@@ -139,7 +136,7 @@ def build_predictions():
 
     if collection.count_documents({"prediction": {"$exists": False}, "status": "Scheduled"}) == 0:
         # No new match to predict
-        log_to_file("No new match to predict", LOG_FILENAME)
+        log_to_file("No new match to predict", PREDICT_LOGS)
         return
 
     my_pipeline = load("tennis_prediction.joblib")

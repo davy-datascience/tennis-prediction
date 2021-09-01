@@ -2,11 +2,16 @@ import time
 import locale
 import pandas as pd
 import re
-from datetime import datetime, timedelta
+import configparser
 
-from log import log
+from datetime import datetime, timedelta
+from log import log, log_to_file, get_file_log
 from queries.tournament_queries import find_tournament_by_id, q_update_tournament, q_create_tournament
 from utils import get_chrome_driver, get_dataframe_json
+
+config = configparser.ConfigParser()
+config.read("config.ini")
+TOURNAMENT_LOGS = get_file_log("tournament_updates")
 
 
 def search_all_tournaments_atptour():
@@ -35,8 +40,9 @@ def search_all_tournaments_atptour():
                 atp_formatted_names.append(None)
                 atp_ids.append(None)
                 atp_names.append(None)
-                print(type(ex).__name__)
-                print("atp tournaments retrieval error, tournament '{0}'".format(elem.text))
+                msg = "atp tournaments retrieval error, tournament '{0}'".format(elem.text)
+                log_to_file(msg, TOURNAMENT_LOGS)
+                log("tournaments", msg, type(ex).__name__)
 
         cities = []
         countries = []
@@ -54,8 +60,9 @@ def search_all_tournaments_atptour():
             except Exception as ex:
                 cities.append(None)
                 countries.append(None)
-                print(type(ex).__name__)
-                print("atp tournaments retrieval error, location '{0}'".format(location))
+                msg = "atp tournaments retrieval error, location '{0}'".format(location)
+                log_to_file(msg, TOURNAMENT_LOGS)
+                log("tournaments", msg, type(ex).__name__)
 
         start_dates = []
         end_dates = []
@@ -85,9 +92,10 @@ def search_all_tournaments_atptour():
                                             "country": countries, "start_date": start_dates, "end_date": end_dates})
 
     except Exception as ex:
-        log("tournaments", "Tournament header retrieval error")
-        print(ex)
-        print(type(ex).__name__)
+        msg = "Tournament header retrieval error"
+        log_to_file(msg, TOURNAMENT_LOGS)
+        log("tournaments", msg, type(ex).__name__)
+
 
     driver.quit()
     return tournaments_atptour
@@ -125,8 +133,8 @@ def search_tournament_atptour(tournament, date_of_matches):
         if len(tour_matched.index) == 1:
             # New tournament kept same formatted_name but new atp_id
             new_atp_id = tour_matched.iloc[0]["atp_id"]
-            log("tournament_updated", "Tournament '{0}' changed atp_id from '{1}' to '{2}'"
-                .format(flash_id, atp_id, new_atp_id))
+            log_to_file("Tournament '{0}' changed atp_id from '{1}' to '{2}'".format(flash_id, atp_id, new_atp_id),
+                        TOURNAMENT_LOGS)
             tournament["atp_id"] = new_atp_id
             return tournament
 
@@ -137,18 +145,20 @@ def search_tournament_atptour(tournament, date_of_matches):
             # New tournament kept same formatted_name but new atp_id
             new_atp_id = tour_matched.iloc[0]["atp_id"]
             new_formatted_name = tour_matched.iloc[0]["atp_formatted_name"]
-            log("tournament_updated", "Tournament '{0}' changed atp_id from '{1}' to '{2}'"
-                .format(flash_id, atp_id, new_atp_id))
-            log("tournament_updated", "Tournament '{0}' changed atp_formatted_name from '{1}' to '{2}'"
-                .format(flash_id, atp_formatted_name, new_formatted_name))
+            log_to_file("Tournament '{0}' changed atp_id from '{1}' to '{2}'".format(flash_id, atp_id, new_atp_id),
+                        TOURNAMENT_LOGS)
+            log_to_file("Tournament '{0}' changed atp_formatted_name from '{1}' to '{2}'"
+                        .format(flash_id, atp_formatted_name, new_formatted_name), TOURNAMENT_LOGS)
             tournament["atp_id"] = new_atp_id
             tournament["atp_formatted_name"] = new_formatted_name
             return tournament
 
         # Tournament new references not found
         else:
-            log("tournament_not_found", "Tournament '{0}' not found, atp_id: '{1}' and atp_formatted_name: '{2}'"
-                .format(flash_id, atp_id, atp_formatted_name))
+            msg = "Tournament '{0}' not found, atp_id: '{1}' and atp_formatted_name: '{2}'"\
+                .format(flash_id, atp_id, atp_formatted_name)
+            log_to_file(msg, TOURNAMENT_LOGS)
+            log("tournament_not_found", msg)
             return None
 
     # New tournament
@@ -169,15 +179,13 @@ def search_tournament_atptour(tournament, date_of_matches):
         if len(tour_matched.index) == 1:
             tournament["atp_id"] = tour_matched.iloc[0]["atp_id"]
             tournament["atp_formatted_name"] = tour_matched.iloc[0]["atp_formatted_name"]
-
-            '''log("tournament_created", "Tournament '{0}' created"
-                .format(flash_id))'''
             return tournament
 
         # New tournament references not found
         else:
-            log("tournament_not_found", "Tournament '{0}' not found"
-                .format(flash_id))
+            msg = "Tournament '{0}' not found".format(flash_id)
+            log_to_file(msg, TOURNAMENT_LOGS)
+            log("tournament_not_found", msg)
             return None
 
 
@@ -252,10 +260,11 @@ def update_tournament(tournament):
         tournaments_json = get_dataframe_json(pd.DataFrame(tournament).T)
         q_update_tournament(tournaments_json[0])
 
-        print("tournament '{0}' has been updated".format(tournament["_id"]))
+        log_to_file("tournament '{0}' has been updated".format(tournament["_id"]), TOURNAMENT_LOGS)
     except Exception as ex:
-        log("tournament_update", "tournament '{0}' couldn't be updated".format(tournament["flash_id"])
-            , type(ex).__name__)
+        msg = "tournament '{0}' couldn't be updated".format(tournament["flash_id"])
+        log_to_file(msg, TOURNAMENT_LOGS)
+        log("tournament_update", msg, type(ex).__name__)
 
 
 def get_tournament(tournament_id, tournaments):
@@ -282,6 +291,8 @@ def add_tournament_info(match):
 def create_tournament(tournament):
     result = q_create_tournament(tournament.to_dict())
     if result is None:
-        log("create_tournament", "couldn't create tournament '{0}'".format(tournament["flash_id"]))
+        msg = "couldn't create tournament '{0}'".format(tournament["flash_id"])
+        log_to_file(msg, TOURNAMENT_LOGS)
+        log("create_tournament", msg)
     else:
-        print("tournament '{0}' has been created".format(tournament["flash_id"]))
+        log_to_file("tournament '{0}' has been created".format(tournament["flash_id"]), TOURNAMENT_LOGS)

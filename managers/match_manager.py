@@ -1,11 +1,10 @@
 import pandas as pd
 import re
 import time
-import configparser
 
 from selenium.common.exceptions import NoSuchElementException
 from datetime import datetime, timedelta
-from log import log, log_to_file
+from log import log, log_to_file, get_file_log
 
 from classes.match_status import MatchStatus
 from managers.player_manager import add_player_info
@@ -15,9 +14,9 @@ from queries.match_queries import q_find_match_by_id, q_update_match, q_create_m
 from queries.tournament_queries import find_tournament_by_name
 from utils import element_has_class, get_chrome_driver
 
-config = configparser.ConfigParser()
-config.read("config.ini")
-LOG_FILENAME = '{0}logs/{1}'.format(config['project']['folder'], config['logs']['scrap_matches'])
+MATCHES_LOGS = get_file_log("scrap_matches")
+MATCHES_ERROR_LOGS = get_file_log("scrap_matches_error")
+TOURNAMENT_LOGS = get_file_log("tournament_updates")
 
 
 def get_match_dtypes(matches):
@@ -163,12 +162,32 @@ def scrap_match_flashscore(match_id, status):
             match_date = pd.to_datetime("{0} {1} {2} {3} {4}".format(year, month, day, hour, minute)
                                         , format='%Y %m %d %H %M', utc=True)
 
-        except Exception:
+        except Exception as ex:
             msg = "Error with date format - scraping match '{}'".format(match_id)
-            log_to_file(msg, LOG_FILENAME)
+            log_to_file(msg, MATCHES_ERROR_LOGS)
+            log("scrap_match", msg, type(ex).__name__)
             raise Exception
 
         match["datetime"] = match_date
+
+        '''
+        Section usefull for scrap_tournament_matches()
+        
+        if status is None:
+            status_elem = driver.find_element_by_xpath("//div[@id='detail']/div[4]/div[3]/div[1]/div[2]/span[1]").text
+            if status_elem == "Finished":
+                status = MatchStatus.Finished
+            else:
+                retired_regex = re.search("retired", status_elem)
+                if retired_regex:
+                    status = MatchStatus.Retired
+                else:
+                    msg = "status_error - match '{}'".format(match_id)
+                    log_to_file(msg, MATCHES_ERROR_LOGS)
+                    log("scrap_match", msg)
+                    driver.quit()
+                    return None
+        '''
 
         match["status"] = status.name
 
@@ -286,7 +305,8 @@ def scrap_match_flashscore(match_id, status):
 
     except Exception as ex:
         msg = "Error while scraping match id '{}'".format(match_id)
-        log_to_file(msg, LOG_FILENAME)
+        log_to_file(msg, MATCHES_ERROR_LOGS)
+        log("scrap_match", msg, type(ex).__name__)
         match = None
 
     driver.quit()
@@ -299,26 +319,29 @@ def create_match(match):
         result = q_create_match(matches_json[0])
         if not result:
             raise Exception("Match not created")
-        log_to_file("match '{0}' has been created".format(match["match_id"]), LOG_FILENAME)
+        log_to_file("match '{0}' has been created".format(match["match_id"]), MATCHES_LOGS)
 
     except Exception as ex:
-        log("match_create", "match '{0}' couldn't be created".format(match["match_id"]), type(ex).__name__)
+        log_to_file("match '{0}' couldn't be created".format(match["match_id"]), MATCHES_ERROR_LOGS)
+        log("scrap_match", "match '{0}' couldn't be created".format(match["match_id"]), type(ex).__name__)
 
 
 def update_match(match):
     try:
         matches_json = get_embedded_matches_json(pd.DataFrame(match).T)
         q_update_match(matches_json[0])
-        log_to_file("match '{0}' has been updated".format(match["_id"]), LOG_FILENAME)
+        log_to_file("match '{0}' has been updated".format(match["_id"]), MATCHES_LOGS)
     except Exception as ex:
-        log("match_update", "match '{0}' couldn't be updated".format(match["match_id"]), type(ex).__name__)
+        log_to_file("match '{0}' couldn't be updated".format(match["match_id"]), MATCHES_ERROR_LOGS)
+        log("scrap_match", "match '{0}' couldn't be updated".format(match["match_id"]), type(ex).__name__)
 
 
 def delete_match(_id):
     result = q_delete_match(_id)
 
     if result is None:
-        log_to_file("match_delete", "match '{0}' not deleted".format(_id), LOG_FILENAME)
+        log_to_file("match '{0}' not deleted".format(_id), MATCHES_ERROR_LOGS)
+        log("match_delete", "match '{0}' not deleted".format(_id))
 
 
 def navigate_to_date(driver, matches_date):
@@ -388,7 +411,7 @@ def get_tournament_from_row(driver, elem, matches_date):
             # Tournament to be updated
             tournament = scrap_tournament(tournament_found, matches_date)
             if tournament is not None:
-                log_to_file("updating tournament {0}".format(tournament["flash_id"]), LOG_FILENAME)
+                log_to_file("updating tournament {0}".format(tournament["flash_id"]), TOURNAMENT_LOGS)
                 update_tournament(tournament)
         else:
             # Tournament exists and is up-to-date
@@ -407,8 +430,9 @@ def get_tournament_from_row(driver, elem, matches_date):
         tournament_matched = flash_tournaments[flash_tournaments["name"] == tournament_name]
 
         if len(tournament_matched.index) != 1:
-            log("scrap_new_tournament", "Couldn't find flashscore tournament id for '{0}'"
-                .format(tournament_name))
+            msg = "Couldn't find flashscore tournament id for '{0}'".format(tournament_name)
+            log_to_file(msg, TOURNAMENT_LOGS)
+            log("tournaments", msg)
             return None
 
         tournament_id = tournament_matched.iloc[0]["flash_id"]
@@ -452,7 +476,9 @@ def find_match_status(elem):
             match_status = MatchStatus.Retired
 
         if match_status is None:
-            log("Status Not Found", "'{0}'".format(status_str))
+            msg = "Status '{0}' Not Found".format(status_str)
+            log_to_file(msg, MATCHES_ERROR_LOGS)
+            log("status", msg)
 
     return match_status
 
@@ -466,7 +492,8 @@ def process_match_row(elem, matches_date):
 
     if match_status is None:
         msg = "Status not found for match '{0}'".format(match_id)
-        log_to_file(msg, LOG_FILENAME)
+        log_to_file(msg, MATCHES_ERROR_LOGS)
+        log("status", MATCHES_ERROR_LOGS)
         return
 
     match_found = q_find_match_by_id(match_id)
@@ -544,3 +571,42 @@ def scrap_matches():
     # Scrap matches from yesterday to D+3
     for delta in range(-1, 4):
         scrap_matches_at_date(today + timedelta(days=delta))
+
+
+'''
+def scrap_tournament_matches(tournament_id, matches_date):
+    driver = get_chrome_driver()
+    match_url = "https://www.flashscore.com/tennis/atp-singles/{0}/results/".format(tournament_id)
+    driver.get(match_url)
+
+    tournament = None
+    elements = driver.find_elements_by_xpath("//div[@class='sportName tennis']/div")
+
+    for elem in elements:
+        if element_has_class(elem, "event__header"):
+            tournament = get_tournament_from_row(driver, elem, matches_date)
+        elif element_has_class(elem, "event__round"):
+            continue
+        else:
+            if tournament is not None:
+                elem_id = elem.get_attribute("id")
+                match_id_regex = re.search("^._._(.*)$", elem_id)
+                match_id = match_id_regex.group(1)
+
+                match = scrap_match_flashscore(match_id, None)
+
+                if match is not None:
+                    create_match(match)
+
+    driver.quit()
+
+
+def scrap_mutliple_tournament_matches():
+    date_str = "2021.08.30"
+    scrap_all_player_ranks(date_str)
+
+    tournament_ids = ["winston-salem"]
+    matches_date = datetime(2021, 8, 24)
+    for tournament_id in tournament_ids:
+        scrap_tournament_matches(tournament_id, matches_date)
+'''
