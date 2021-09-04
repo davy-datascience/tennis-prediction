@@ -33,19 +33,9 @@ def delete_log_by_label(label):
 
 def log_to_file(msg, file_path, level=logging.INFO):
     # Log
-    formatter = logging.Formatter('%(asctime)s  %(name)s:%(levelname)s: %(message)s')
-    handler = logging.FileHandler(file_path)
-    handler.setFormatter(formatter)
-
-    logger = logging.getLogger("name")
-    logger.setLevel(level)
-    logger.addHandler(handler)
-
-    logger.log(level, "{0}".format(msg))
-
-    '''logging.basicConfig(filename=file_path, level=logging.INFO,
+    logging.basicConfig(filename=file_path, level=logging.INFO,
                         format='%(asctime)s  %(name)s:%(levelname)s: %(message)s')
-    logging.log(level, "{0}".format(msg))'''
+    logging.log(level, "{0}".format(msg))
     # Print to console
     print(msg)
 
