@@ -1,4 +1,6 @@
 import configparser
+from datetime import datetime, timedelta
+
 import pandas as pd
 
 from sklearn.compose import ColumnTransformer
@@ -12,7 +14,7 @@ from joblib import dump, load
 from log import log_to_file, get_file_log
 from managers.match_manager import get_match_dtypes
 from queries.match_queries import q_get_past_matches, q_get_scheduled_matches, q_update_match, \
-    get_embedded_matches_json, get_matches_collection
+    get_embedded_matches_json, get_matches_collection, get_matches_from_created_date
 from model_deployment.feature_engineering import get_categorical_cols, get_numerical_cols, add_features
 
 PREDICT_LOGS = get_file_log("predict_matches")
@@ -147,6 +149,18 @@ def build_predictions():
     predictions = get_predictions(scheduled_matches, my_pipeline)
 
     matches = pd.concat([scheduled_matches, predictions], axis=1)
+
+    matches_json = get_embedded_matches_json(matches)
+
+    for match_json in matches_json:
+        q_update_match(match_json)
+
+
+def resolve_date():
+    from_date = datetime(2021, 8, 15)
+    matches = get_matches_from_created_date(from_date)
+
+    matches["datetime"] = matches.apply(lambda match: match["datetime"] - timedelta(hours=2), axis=1)
 
     matches_json = get_embedded_matches_json(matches)
 

@@ -189,6 +189,14 @@ def q_get_scheduled_matches():
     return normalize_matches(match_list)
 
 
+def get_matches_from_created_date(from_date):
+    collection = get_matches_collection()
+
+    match_list = list(collection.find({"created": {"$gt": from_date}}))
+
+    return normalize_matches(match_list)
+
+
 def q_find_match_by_id(match_id):
     collection = get_matches_collection()
     match_list = list(collection.find({"match_id": match_id}))
