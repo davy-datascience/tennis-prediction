@@ -566,6 +566,7 @@ def scrap_matches_at_date(matches_date):
 
 
 def scrap_matches():
+    # ATTENTION UTC !!!!
     today = datetime.now().date()
 
     # Scrap matches from yesterday to D+3
