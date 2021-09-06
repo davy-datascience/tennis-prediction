@@ -180,11 +180,18 @@ def q_get_past_matches():
     return normalize_matches(match_list)
 
 
-def q_get_scheduled_matches():
+def q_get_unfeatured_matches():
     collection = get_matches_collection()
 
-    match_list = list(collection.find({"status": "Scheduled"}))
-    # match_list = list(collection.find({"datetime": {"$gte": datetime(2021, 4, 2)}}))
+    match_list = list(collection.find({"features": {"$exists": False}}))
+
+    return normalize_matches(match_list)
+
+
+def q_get_unpredicted_matches():
+    collection = get_matches_collection()
+
+    match_list = list(collection.find({"status": "Scheduled", "prediction": {"$exists": False}}))
 
     return normalize_matches(match_list)
 

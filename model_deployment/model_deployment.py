@@ -13,8 +13,8 @@ from joblib import dump, load
 
 from log import log_to_file, get_file_log
 from managers.match_manager import get_match_dtypes
-from queries.match_queries import q_get_past_matches, q_get_scheduled_matches, q_update_match, \
-    get_embedded_matches_json, get_matches_collection, get_matches_from_created_date
+from queries.match_queries import q_get_past_matches, q_update_match, get_embedded_matches_json, \
+    get_matches_collection, get_matches_from_created_date, q_get_unfeatured_matches, q_get_unpredicted_matches
 from model_deployment.feature_engineering import get_categorical_cols, get_numerical_cols, add_features
 
 PREDICT_LOGS = get_file_log("predict_matches")
@@ -99,20 +99,20 @@ def build_model():
 def feature_engineer():
     collection = get_matches_collection()
 
-    if collection.count_documents({"features": {"$exists": False}, "status": "Scheduled"}) == 0:
+    if collection.count_documents({"features": {"$exists": False}}) == 0:
         # No new match to build features
         log_to_file("No new match to build features", PREDICT_LOGS)
         return
 
-    scheduled_matches = q_get_scheduled_matches()
-    scheduled_matches = scheduled_matches.astype(get_match_dtypes(scheduled_matches))
+    unfeatured_matches = q_get_unfeatured_matches()
+    unfeatured_matches = unfeatured_matches.astype(get_match_dtypes(unfeatured_matches))
 
     past_matches = q_get_past_matches()
     past_matches = past_matches.astype(get_match_dtypes(past_matches))
 
-    features = add_features(scheduled_matches, past_matches)
+    features = add_features(unfeatured_matches, past_matches)
 
-    matches = pd.concat([scheduled_matches[["_id"]], features], axis=1)
+    matches = pd.concat([unfeatured_matches[["_id"]], features], axis=1)
 
     matches_json = get_embedded_matches_json(matches)
 
@@ -136,19 +136,19 @@ def get_predictions(scheduled_matches, pipeline):
 def build_predictions():
     collection = get_matches_collection()
 
-    if collection.count_documents({"prediction": {"$exists": False}, "status": "Scheduled"}) == 0:
+    if collection.count_documents({"prediction": {"$exists": False}, "features": {"$exists": True}}) == 0:
         # No new match to predict
         log_to_file("No new match to predict", PREDICT_LOGS)
         return
 
     my_pipeline = load("tennis_prediction.joblib")
 
-    scheduled_matches = q_get_scheduled_matches()
-    scheduled_matches = scheduled_matches.astype(get_match_dtypes(scheduled_matches))
+    matches_to_predict = q_get_unpredicted_matches()
+    matches_to_predict = matches_to_predict.astype(get_match_dtypes(matches_to_predict))
 
-    predictions = get_predictions(scheduled_matches, my_pipeline)
+    predictions = get_predictions(matches_to_predict, my_pipeline)
 
-    matches = pd.concat([scheduled_matches, predictions], axis=1)
+    matches = pd.concat([matches_to_predict, predictions], axis=1)
 
     matches_json = get_embedded_matches_json(matches)
 
