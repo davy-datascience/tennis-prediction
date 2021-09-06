@@ -136,7 +136,7 @@ def get_predictions(scheduled_matches, pipeline):
 def build_predictions():
     collection = get_matches_collection()
 
-    if collection.count_documents({"prediction": {"$exists": False}, "features": {"$exists": True}}) == 0:
+    if collection.count_documents({"status": "Scheduled", "prediction": {"$exists": False}}) == 0:
         # No new match to predict
         log_to_file("No new match to predict", PREDICT_LOGS)
         return
